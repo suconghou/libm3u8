@@ -9,12 +9,16 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var mlog = log.New(os.Stderr, "", 0)
+var (
+	mlog   = log.New(os.Stderr, "", 0)
+	urlreg = regexp.MustCompile(`^[a-zA-z]+://[^\s]+$`)
+)
 
 type stream struct {
 	duration float64
@@ -66,7 +70,7 @@ func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
 		url:        url,
 		base:       strings.Replace(path.Dir(url), ":/", "://", 1),
 		nextURL:    nextURL,
-		streamchan: make(chan *stream, 64),
+		streamchan: make(chan *stream, 8192),
 	}
 	updateM3U8(m, part)
 	if part.offline {
@@ -96,6 +100,29 @@ func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
 		}
 	}(m)
 	return m, nil
+}
+
+// NewReader streams
+func NewReader(scanner *bufio.Scanner) io.Reader {
+	r, w := io.Pipe()
+	go func(w *io.PipeWriter) {
+		for scanner.Scan() {
+			url := scanner.Text()
+			if isURL(url) {
+				resp, err := getResp(url)
+				if err != nil {
+					mlog.Print(err)
+				}
+				defer resp.Body.Close()
+				_, err = io.Copy(w, resp.Body)
+				if err != nil {
+					mlog.Print(err)
+				}
+			}
+		}
+		w.CloseWithError(io.EOF)
+	}(w)
+	return &playItem{r: r, w: w}
 }
 
 // GetDuration return media total duration
@@ -143,7 +170,7 @@ func (m *M3U8) Play() io.Reader {
 					mlog.Print(err)
 				}
 			} else {
-				w.Close()
+				w.CloseWithError(io.EOF)
 				return
 			}
 		}
@@ -245,6 +272,10 @@ func notIn(streams []*stream, item *stream) bool {
 		}
 	}
 	return true
+}
+
+func isURL(url string) bool {
+	return urlreg.MatchString(url)
 }
 
 func respOk(resp *http.Response) bool {
