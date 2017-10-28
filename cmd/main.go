@@ -14,5 +14,5 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	io.Copy(os.Stdout, m)
+	io.Copy(os.Stdout, m.Play())
 }

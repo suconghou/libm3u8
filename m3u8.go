@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var mlog = log.New(os.Stdout, "", 0)
+var mlog = log.New(os.Stderr, "", 0)
 
 type stream struct {
 	duration float64
@@ -33,6 +33,12 @@ type M3U8 struct {
 	parts      []*mpart
 	streams    []*stream
 	streamchan chan *stream
+	play       *playItem
+}
+
+type playItem struct {
+	w io.Writer
+	r io.Reader
 }
 
 type mpart struct {
@@ -48,7 +54,11 @@ type mpart struct {
 func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		time.Sleep(time.Second)
+		resp, err = http.Get(url)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
 		defer resp.Body.Close()
@@ -119,6 +129,40 @@ func (m *M3U8) Read(p []byte) (int, error) {
 	}
 }
 
+// Play ts file
+func (m *M3U8) Play() io.Reader {
+	if m.play != nil {
+		return m.play
+	}
+	r, w := io.Pipe()
+	go func(m *M3U8) {
+		for {
+			stream, more := <-m.streamchan
+			if more {
+				u := m.base + "/" + stream.url
+				resp, err := http.Get(u)
+				if err != nil {
+					time.Sleep(time.Second)
+					resp, err = http.Get(u)
+					if err != nil {
+						mlog.Print(err)
+					}
+				}
+				defer resp.Body.Close()
+				_, err = io.Copy(w, resp.Body)
+				if err != nil {
+					mlog.Print(err)
+				}
+			} else {
+				w.Close()
+				return
+			}
+		}
+	}(m)
+	m.play = &playItem{r: r, w: w}
+	return m.play
+}
+
 func parseUntil(m *M3U8) (*mpart, error) {
 	var url = m.url
 	if m.nextURL != nil {
@@ -126,7 +170,11 @@ func parseUntil(m *M3U8) (*mpart, error) {
 	}
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		time.Sleep(time.Second)
+		resp, err = http.Get(url)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
 		defer resp.Body.Close()
@@ -138,6 +186,10 @@ func parseUntil(m *M3U8) (*mpart, error) {
 		return part, nil
 	}
 	return nil, fmt.Errorf("%s:%s", url, resp.Status)
+}
+
+func (play *playItem) Read(p []byte) (int, error) {
+	return play.r.Read(p)
 }
 
 func parsePart(scanner *bufio.Scanner) (*mpart, error) {
