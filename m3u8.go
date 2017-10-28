@@ -52,57 +52,50 @@ type mpart struct {
 
 // NewFromURL return m3u8
 func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
-	resp, err := http.Get(url)
+	resp, err := getResp(url)
 	if err != nil {
-		time.Sleep(time.Second)
-		resp, err = http.Get(url)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
-	if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
-		defer resp.Body.Close()
-		scanner := bufio.NewScanner(resp.Body)
-		part, err := parsePart(scanner)
-		if err != nil {
-			return nil, err
-		}
-		m := &M3U8{
-			url:        url,
-			base:       strings.Replace(path.Dir(url), ":/", "://", 1),
-			nextURL:    nextURL,
-			streamchan: make(chan *stream, 64),
-		}
-		updateM3U8(m, part)
-		if part.offline {
-			close(m.streamchan)
-			return m, nil
-		}
-		var partID = part.partID
-		go func(m *M3U8) {
-			for {
-				part, err := parseUntil(m)
-				if err != nil {
-					mlog.Print(err)
-					close(m.streamchan)
-					return
-				}
-				if partID == part.partID {
-					time.Sleep(time.Second)
-					continue
-				}
-				partID = part.partID
-				updateM3U8(m, part)
-				if m.offline {
-					close(m.streamchan)
-					return
-				}
-				time.Sleep(time.Second * time.Duration(part.targetDuration))
-			}
-		}(m)
+	defer resp.Body.Close()
+	scanner := bufio.NewScanner(resp.Body)
+	part, err := parsePart(scanner)
+	if err != nil {
+		return nil, err
+	}
+	m := &M3U8{
+		url:        url,
+		base:       strings.Replace(path.Dir(url), ":/", "://", 1),
+		nextURL:    nextURL,
+		streamchan: make(chan *stream, 64),
+	}
+	updateM3U8(m, part)
+	if part.offline {
+		close(m.streamchan)
 		return m, nil
 	}
-	return nil, fmt.Errorf("%s:%s", url, resp.Status)
+	var partID = part.partID
+	go func(m *M3U8) {
+		for {
+			part, err := parseUntil(m)
+			if err != nil {
+				mlog.Print(err)
+				close(m.streamchan)
+				return
+			}
+			if partID == part.partID {
+				time.Sleep(time.Second)
+				continue
+			}
+			partID = part.partID
+			updateM3U8(m, part)
+			if m.offline {
+				close(m.streamchan)
+				return
+			}
+			time.Sleep(time.Second * time.Duration(part.targetDuration))
+		}
+	}(m)
+	return m, nil
 }
 
 // GetDuration return media total duration
@@ -140,13 +133,9 @@ func (m *M3U8) Play() io.Reader {
 			stream, more := <-m.streamchan
 			if more {
 				u := m.base + "/" + stream.url
-				resp, err := http.Get(u)
+				resp, err := getResp(u)
 				if err != nil {
-					time.Sleep(time.Second)
-					resp, err = http.Get(u)
-					if err != nil {
-						mlog.Print(err)
-					}
+					mlog.Print(err)
 				}
 				defer resp.Body.Close()
 				_, err = io.Copy(w, resp.Body)
@@ -168,24 +157,17 @@ func parseUntil(m *M3U8) (*mpart, error) {
 	if m.nextURL != nil {
 		url = m.nextURL()
 	}
-	resp, err := http.Get(url)
+	resp, err := getResp(url)
 	if err != nil {
-		time.Sleep(time.Second)
-		resp, err = http.Get(url)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
-	if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
-		defer resp.Body.Close()
-		scanner := bufio.NewScanner(resp.Body)
-		part, err := parsePart(scanner)
-		if err != nil {
-			return part, err
-		}
-		return part, nil
+	defer resp.Body.Close()
+	scanner := bufio.NewScanner(resp.Body)
+	part, err := parsePart(scanner)
+	if err != nil {
+		return part, err
 	}
-	return nil, fmt.Errorf("%s:%s", url, resp.Status)
+	return part, nil
 }
 
 func (play *playItem) Read(p []byte) (int, error) {
@@ -263,4 +245,43 @@ func notIn(streams []*stream, item *stream) bool {
 		}
 	}
 	return true
+}
+
+func respOk(resp *http.Response) bool {
+	return resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed
+}
+
+func getResp(url string) (*http.Response, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		time.Sleep(time.Second)
+		resp, err = http.Get(url)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !respOk(resp) {
+		resp.Body.Close()
+		time.Sleep(time.Second)
+		resp, err = http.Get(url)
+		if err != nil {
+			time.Sleep(time.Second)
+			resp, err = http.Get(url)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	if !respOk(resp) {
+		time.Sleep(time.Second)
+		resp, err = http.Get(url)
+		if err != nil {
+			if !respOk(resp) {
+				return resp, fmt.Errorf(resp.Status)
+			}
+			return resp, err
+		}
+		return resp, err
+	}
+	return resp, nil
 }
