@@ -183,6 +183,9 @@ func parseUntil(m *M3U8) (*mpart, error) {
 	var url = m.url
 	if m.nextURL != nil {
 		url = m.nextURL()
+		if url == "" {
+			return nil, fmt.Errorf("nextURL return eof")
+		}
 	}
 	resp, err := getResp(url)
 	if err != nil {
