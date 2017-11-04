@@ -20,6 +20,8 @@ var (
 	urlreg = regexp.MustCompile(`^[a-zA-z]+://[^\s]+$`)
 )
 
+const tryTimes uint8 = 5
+
 type stream struct {
 	duration float64
 	start    float64
@@ -56,7 +58,7 @@ type mpart struct {
 
 // NewFromURL return m3u8
 func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
-	resp, err := getResp(url)
+	resp, err := getResp(url, tryTimes)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +111,10 @@ func NewReader(scanner *bufio.Scanner) io.Reader {
 		for scanner.Scan() {
 			url := scanner.Text()
 			if isURL(url) {
-				resp, err := getResp(url)
+				resp, err := getResp(url, tryTimes)
 				if err != nil {
 					mlog.Print(err)
+					continue
 				}
 				defer resp.Body.Close()
 				_, err = io.Copy(w, resp.Body)
@@ -160,9 +163,10 @@ func (m *M3U8) Play() io.Reader {
 			stream, more := <-m.streamchan
 			if more {
 				u := m.base + "/" + stream.url
-				resp, err := getResp(u)
+				resp, err := getResp(u, tryTimes)
 				if err != nil {
 					mlog.Print(err)
+					continue
 				}
 				defer resp.Body.Close()
 				_, err = io.Copy(w, resp.Body)
@@ -187,7 +191,7 @@ func parseUntil(m *M3U8) (*mpart, error) {
 			return nil, fmt.Errorf("nextURL return eof")
 		}
 	}
-	resp, err := getResp(url)
+	resp, err := getResp(url, tryTimes)
 	if err != nil {
 		return nil, err
 	}
@@ -285,37 +289,25 @@ func respOk(resp *http.Response) bool {
 	return resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed
 }
 
-func getResp(url string) (*http.Response, error) {
-	resp, err := http.Get(url)
-	if err != nil {
-		time.Sleep(time.Second)
+func getResp(url string, tryTimes uint8) (*http.Response, error) {
+	var (
+		resp  *http.Response
+		err   error
+		times uint8
+	)
+	for {
 		resp, err = http.Get(url)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if !respOk(resp) {
-		resp.Body.Close()
-		time.Sleep(time.Second)
-		resp, err = http.Get(url)
-		if err != nil {
-			time.Sleep(time.Second)
-			resp, err = http.Get(url)
-			if err != nil {
-				return nil, err
+		times++
+		if err == nil {
+			if respOk(resp) {
+				break
+			} else {
+				err = fmt.Errorf(resp.Status)
 			}
 		}
-	}
-	if !respOk(resp) {
-		time.Sleep(time.Second)
-		resp, err = http.Get(url)
-		if err != nil {
-			if !respOk(resp) {
-				return resp, fmt.Errorf(resp.Status)
-			}
-			return resp, err
+		if times > tryTimes {
+			break
 		}
-		return resp, err
 	}
-	return resp, nil
+	return resp, err
 }
