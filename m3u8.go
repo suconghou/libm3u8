@@ -84,8 +84,10 @@ func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
 		for {
 			part, err := parseUntil(m)
 			if err != nil {
-				mlog.Print(err)
 				close(m.streamchan)
+				if err != io.EOF {
+					mlog.Print(err)
+				}
 				return
 			}
 			if partID == part.partID {
@@ -188,7 +190,7 @@ func parseUntil(m *M3U8) (*mpart, error) {
 	if m.nextURL != nil {
 		url = m.nextURL()
 		if url == "" {
-			return nil, fmt.Errorf("nextURL return eof")
+			return nil, io.EOF
 		}
 	}
 	resp, err := getResp(url, tryTimes)
