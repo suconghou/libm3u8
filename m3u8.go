@@ -63,8 +63,7 @@ func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	scanner := bufio.NewScanner(resp.Body)
-	part, err := parsePart(scanner)
+	part, err := parsePart(bufio.NewScanner(resp.Body))
 	if err != nil {
 		return nil, err
 	}
@@ -198,12 +197,7 @@ func parseUntil(m *M3U8) (*mpart, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	scanner := bufio.NewScanner(resp.Body)
-	part, err := parsePart(scanner)
-	if err != nil {
-		return part, err
-	}
-	return part, nil
+	return parsePart(bufio.NewScanner(resp.Body))
 }
 
 func (play *playItem) Read(p []byte) (int, error) {
@@ -217,7 +211,7 @@ func parsePart(scanner *bufio.Scanner) (*mpart, error) {
 	)
 	part := &mpart{}
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
@@ -310,6 +304,7 @@ func getResp(url string, tryTimes uint8) (*http.Response, error) {
 		if times > tryTimes {
 			break
 		}
+		time.Sleep(time.Second)
 	}
 	return resp, err
 }
