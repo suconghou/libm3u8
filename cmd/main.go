@@ -25,7 +25,7 @@ func main() {
 func play() {
 	m, err := libm3u8.NewFromURL(os.Args[2], nil)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	io.Copy(os.Stdout, m.Play())
@@ -34,7 +34,7 @@ func play() {
 func playList() {
 	m, err := libm3u8.NewFromURL(os.Args[2], nil)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		return
 	}
 	io.Copy(os.Stdout, m)
