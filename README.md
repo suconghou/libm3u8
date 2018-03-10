@@ -6,19 +6,25 @@
 init
 
 ```
-m, err := libm3u8.NewFromURL(url, nil)
+m := libm3u8.NewFromURL(nextURL)
 ```
 
 for file links
 
 ```
-io.Copy(os.Stdout, m)
+io.Copy(os.Stdout, m.PlayList())
 ```
 
 for stream download
 ```
 io.Copy(os.Stdout, m.Play())
 ```
+
+for origin url
+```
+io.Copy(os.Stdout, m)
+```
+
 
 
 ### url links

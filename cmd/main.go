@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os"
 
@@ -23,26 +22,16 @@ func main() {
 }
 
 func play() {
-	m, err := libm3u8.NewFromURL(os.Args[2], nil)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
+	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
 	io.Copy(os.Stdout, m.Play())
 }
 
 func playList() {
-	m, err := libm3u8.NewFromURL(os.Args[2], nil)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return
-	}
+	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
 	io.Copy(os.Stdout, m)
 }
 
 func playStream() {
-	r := os.Stdin
-	scanner := bufio.NewScanner(r)
-	m := libm3u8.NewReader(scanner)
+	m := libm3u8.NewReader(bufio.NewScanner(os.Stdin))
 	io.Copy(os.Stdout, m)
 }

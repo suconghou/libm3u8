@@ -2,309 +2,86 @@ package libm3u8
 
 import (
 	"bufio"
-	"bytes"
-	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
 
-var (
-	mlog   = log.New(os.Stderr, "", 0)
-	urlreg = regexp.MustCompile(`^[a-zA-z]+://[^\s]+$`)
-)
-
-const tryTimes uint8 = 5
-
-type stream struct {
-	duration float64
-	start    float64
-	url      string
-	index    int32
-}
-
 // M3U8 resource
 type M3U8 struct {
-	url        string
-	base       string
-	nextURL    func() string
-	offline    bool
-	duration   float64
-	parts      []*mpart
-	streams    []*stream
-	streamchan chan *stream
-	play       *playItem
-}
-
-type playItem struct {
-	w io.Writer
-	r io.Reader
-}
-
-type mpart struct {
-	partID         string
-	targetDuration int
-	streams        []*stream
-	offline        bool
-	fileNum        int32
-	duration       float64
+	io.Reader
+	base string
 }
 
 // NewFromURL return m3u8
-func NewFromURL(url string, nextURL func() string) (*M3U8, error) {
-	resp, err := getResp(url, tryTimes)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	part, err := parsePart(bufio.NewScanner(resp.Body))
-	if err != nil {
-		return nil, err
-	}
-	m := &M3U8{
-		url:        url,
-		base:       strings.Replace(path.Dir(url), ":/", "://", 1),
-		nextURL:    nextURL,
-		streamchan: make(chan *stream, 8192),
-	}
-	updateM3U8(m, part)
-	if part.offline {
-		close(m.streamchan)
-		return m, nil
-	}
-	var partID = part.partID
-	go func(m *M3U8) {
-		for {
-			part, err := parseUntil(m)
-			if err != nil {
-				close(m.streamchan)
-				if err != io.EOF {
-					mlog.Print(err)
-				}
-				return
-			}
-			if partID == part.partID {
-				time.Sleep(time.Second)
-				continue
-			}
-			partID = part.partID
-			updateM3U8(m, part)
-			if m.offline {
-				close(m.streamchan)
-				return
-			}
-			time.Sleep(time.Second * time.Duration(part.targetDuration))
-		}
-	}(m)
-	return m, nil
-}
-
-// NewReader streams
-func NewReader(scanner *bufio.Scanner) io.Reader {
+func NewFromURL(nextURL func() string) *M3U8 {
 	r, w := io.Pipe()
+	url := nextURL()
 	go func(w *io.PipeWriter) {
-		for scanner.Scan() {
-			url := scanner.Text()
-			if isURL(url) {
-				resp, err := getResp(url, tryTimes)
-				if err != nil {
-					mlog.Print(err)
-					continue
-				}
-				defer resp.Body.Close()
-				_, err = io.Copy(w, resp.Body)
-				if err != nil {
-					mlog.Print(err)
-				}
+		var (
+			resp *http.Response
+			err  error
+		)
+		for {
+			if url == "" {
+				w.CloseWithError(io.EOF)
+				return
 			}
+			resp, err = getResp(url, tryTimes)
+			if err != nil {
+				mlog.Print(err)
+			}
+			_, err = io.Copy(w, resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				mlog.Print(err)
+			}
+			time.Sleep(time.Second * 2)
+			url = nextURL()
 		}
-		w.CloseWithError(io.EOF)
 	}(w)
-	return &playItem{r: r, w: w}
+	m := NewFromReader(bufio.NewScanner(r))
+	m.base = strings.Replace(path.Dir(url), ":/", "://", 1)
+	return m
 }
 
-// GetDuration return media total duration
-func (m *M3U8) GetDuration() (float64, bool) {
-	return m.duration, m.offline
-}
-
-// GetAvailableList return all ts file link
-func (m *M3U8) GetAvailableList() ([]string, float64, bool) {
-	var avaible []string
-	for _, item := range m.streams {
-		avaible = append(avaible, item.url)
+// NewFromFile parse file content
+func NewFromFile(path string) (*M3U8, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
 	}
-	return avaible, m.duration, m.offline
+	return NewFromReader(bufio.NewScanner(file)), nil
 }
 
-func (m *M3U8) Read(p []byte) (int, error) {
-	for {
-		stream, more := <-m.streamchan
-		if more {
-			return bytes.NewBufferString((m.base + "/" + stream.url + "\n")).Read(p)
-		}
-		return 0, io.EOF
-	}
+// NewFromReader get data from reader
+func NewFromReader(scanner *bufio.Scanner) *M3U8 {
+	r := Parse(scanner)
+	return &M3U8{Reader: r}
+}
+
+// SetBaseURL set base url
+func (m *M3U8) SetBaseURL(url string) {
+	m.base = url
 }
 
 // Play ts file
 func (m *M3U8) Play() io.Reader {
-	if m.play != nil {
-		return m.play
-	}
+	return NewReader(bufio.NewScanner(m.PlayList()))
+}
+
+// PlayList get play list
+func (m *M3U8) PlayList() io.Reader {
 	r, w := io.Pipe()
-	go func(m *M3U8) {
-		for {
-			stream, more := <-m.streamchan
-			if more {
-				u := m.base + "/" + stream.url
-				resp, err := getResp(u, tryTimes)
-				if err != nil {
-					mlog.Print(err)
-					continue
-				}
-				defer resp.Body.Close()
-				_, err = io.Copy(w, resp.Body)
-				if err != nil {
-					mlog.Print(err)
-				}
-			} else {
-				w.CloseWithError(io.EOF)
-				return
-			}
+	go func(w *io.PipeWriter) {
+		scanner := bufio.NewScanner(m)
+		for scanner.Scan() {
+			line := scanner.Text()
+			w.Write([]byte(m.base + line))
 		}
-	}(m)
-	m.play = &playItem{r: r, w: w}
-	return m.play
-}
-
-func parseUntil(m *M3U8) (*mpart, error) {
-	var url = m.url
-	if m.nextURL != nil {
-		url = m.nextURL()
-		if url == "" {
-			return nil, io.EOF
-		}
-	}
-	resp, err := getResp(url, tryTimes)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return parsePart(bufio.NewScanner(resp.Body))
-}
-
-func (play *playItem) Read(p []byte) (int, error) {
-	return play.r.Read(p)
-}
-
-func parsePart(scanner *bufio.Scanner) (*mpart, error) {
-	var (
-		index int32
-		st    float64
-	)
-	part := &mpart{}
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-		if strings.HasPrefix(line, "#EXT-X-MEDIA-SEQUENCE") {
-			part.partID = strings.Replace(line, "#EXT-X-MEDIA-SEQUENCE:", "", 1)
-			continue
-		}
-		if strings.HasPrefix(line, "#EXT-X-TARGETDURATION") {
-			dur, err := strconv.Atoi(strings.Replace(line, "#EXT-X-TARGETDURATION:", "", 1))
-			if err != nil {
-				return part, err
-			}
-			part.targetDuration = dur
-			continue
-		}
-		if strings.HasPrefix(line, "#EXT-X-ENDLIST") {
-			part.offline = true
-			continue
-		}
-		if strings.HasPrefix(line, "#EXTINF") {
-			durstr, err := strconv.ParseFloat(strings.Split(strings.Replace(line, "#EXTINF:", "", 1), ",")[0], 32)
-			if err != nil {
-				return part, err
-			}
-			st = durstr
-			index++
-		} else {
-			if st > 0 && index > 0 {
-				start := part.duration
-				part.streams = append(part.streams, &stream{
-					index:    index,
-					start:    start,
-					duration: st,
-					url:      line,
-				})
-				part.duration = start + st
-			}
-			st = 0
-		}
-	}
-	part.fileNum = index
-	return part, nil
-}
-
-func updateM3U8(m *M3U8, part *mpart) {
-	m.parts = append(m.parts, part)
-	m.duration += part.duration
-	m.offline = part.offline
-	for _, item := range part.streams {
-		if notIn(m.streams, item) {
-			m.streams = append(m.streams, item)
-			m.streamchan <- item
-		}
-	}
-}
-
-func notIn(streams []*stream, item *stream) bool {
-	for _, one := range streams {
-		if one.url == item.url {
-			return false
-		}
-	}
-	return true
-}
-
-func isURL(url string) bool {
-	return urlreg.MatchString(url)
-}
-
-func respOk(resp *http.Response) bool {
-	return resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed
-}
-
-func getResp(url string, tryTimes uint8) (*http.Response, error) {
-	var (
-		resp  *http.Response
-		err   error
-		times uint8
-	)
-	for {
-		resp, err = http.Get(url)
-		times++
-		if err == nil {
-			if respOk(resp) {
-				break
-			} else {
-				err = fmt.Errorf(resp.Status)
-			}
-		}
-		if times > tryTimes {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	return resp, err
+	}(w)
+	return r
 }
