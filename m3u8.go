@@ -2,10 +2,12 @@ package libm3u8
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,6 +26,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 		var (
 			resp *http.Response
 			err  error
+			buf  bytes.Buffer
 		)
 		for {
 			if url == "" {
@@ -34,17 +37,19 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			if err != nil {
 				mlog.Print(err)
 			}
-			_, err = io.Copy(w, resp.Body)
+			_, err = io.Copy(w, io.TeeReader(resp.Body, &buf))
 			resp.Body.Close()
 			if err != nil {
 				mlog.Print(err)
 			}
-			time.Sleep(time.Second * 2)
+			t := getWaitTime(&buf)
+			buf.Reset()
+			time.Sleep(t)
 			url = nextURL()
 		}
 	}(w)
 	m := NewFromReader(bufio.NewScanner(r))
-	m.base = strings.Replace(path.Dir(url), ":/", "://", 1)
+	m.base = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
 	return m
 }
 
@@ -80,8 +85,23 @@ func (m *M3U8) PlayList() io.Reader {
 		scanner := bufio.NewScanner(m)
 		for scanner.Scan() {
 			line := scanner.Text()
-			w.Write([]byte(m.base + line))
+			w.Write([]byte(m.base + line + "\n"))
 		}
 	}(w)
 	return r
+}
+
+func getWaitTime(buf *bytes.Buffer) time.Duration {
+	scanner := bufio.NewScanner(buf)
+	const k = "#EXT-X-TARGETDURATION"
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" && strings.HasPrefix(line, k) {
+			_, value := getValue(line, k)
+			if t, err := strconv.Atoi(value); err == nil {
+				return time.Duration(t) * time.Second
+			}
+		}
+	}
+	return time.Second
 }

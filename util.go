@@ -14,8 +14,9 @@ import (
 const tryTimes uint8 = 5
 
 var (
-	mlog   = log.New(os.Stderr, "", 0)
+	mlog   = log.New(os.Stderr, "", log.Lshortfile)
 	urlreg = regexp.MustCompile(`^(?i:https?)://[[:print:]]+$`)
+	client = &http.Client{Timeout: time.Duration(60) * time.Second}
 )
 
 func isURL(url string) bool {
@@ -33,7 +34,7 @@ func getResp(url string, tryTimes uint8) (*http.Response, error) {
 		times uint8
 	)
 	for {
-		resp, err = http.Get(url)
+		resp, err = client.Get(url)
 		times++
 		if err == nil {
 			if respOk(resp) {
@@ -45,7 +46,7 @@ func getResp(url string, tryTimes uint8) (*http.Response, error) {
 		if times > tryTimes {
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 	}
 	return resp, err
 }
