@@ -42,8 +42,12 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			if err != nil {
 				mlog.Print(err)
 			}
-			t := getWaitTime(&buf)
+			t, last := getWaitTime(&buf)
 			buf.Reset()
+			if last {
+				w.CloseWithError(io.EOF)
+				return
+			}
 			time.Sleep(t)
 			url = nextURL()
 		}
@@ -91,7 +95,7 @@ func (m *M3U8) PlayList() io.Reader {
 	return r
 }
 
-func getWaitTime(buf *bytes.Buffer) time.Duration {
+func getWaitTime(buf *bytes.Buffer) (time.Duration, bool) {
 	scanner := bufio.NewScanner(buf)
 	const k = "#EXT-X-TARGETDURATION"
 	for scanner.Scan() {
@@ -99,9 +103,9 @@ func getWaitTime(buf *bytes.Buffer) time.Duration {
 		if line != "" && strings.HasPrefix(line, k) {
 			_, value := getValue(line, k)
 			if t, err := strconv.Atoi(value); err == nil {
-				return time.Duration(t) * time.Second
+				return time.Duration(t) * time.Second, bytes.HasSuffix(buf.Bytes(), []byte("#EXT-X-ENDLIST"))
 			}
 		}
 	}
-	return time.Second
+	return time.Second, true
 }
