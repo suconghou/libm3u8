@@ -27,14 +27,13 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			resp  *http.Response
 			err   error
 			buf   bytes.Buffer
-			timer time.Time
+			timer time.Time = time.Now()
 		)
 		for {
 			if url == "" {
 				w.CloseWithError(io.EOF)
 				return
 			}
-			timer = time.Now()
 			resp, err = getResp(url, tryTimes)
 			if err != nil {
 				mlog.Print(err)
@@ -61,6 +60,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 				duration := time.Duration(t) * time.Millisecond
 				time.Sleep(duration)
 			}
+			timer = time.Now()
 			url = nextURL()
 		}
 	}(w)

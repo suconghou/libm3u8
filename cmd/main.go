@@ -3,9 +3,14 @@ package main
 import (
 	"bufio"
 	"io"
+	"log"
 	"os"
 
 	"github.com/suconghou/libm3u8"
+)
+
+var (
+	mlog = log.New(os.Stderr, "", log.Lshortfile)
 )
 
 func main() {
@@ -23,15 +28,24 @@ func main() {
 
 func play() {
 	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
-	io.Copy(os.Stdout, m.Play())
+	_, err := io.Copy(os.Stdout, m.Play())
+	pe(err)
 }
 
 func playList() {
 	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
-	io.Copy(os.Stdout, m)
+	_, err := io.Copy(os.Stdout, m)
+	pe(err)
 }
 
 func playStream() {
 	m := libm3u8.NewReader(bufio.NewScanner(os.Stdin))
-	io.Copy(os.Stdout, m)
+	_, err := io.Copy(os.Stdout, m)
+	pe(err)
+}
+
+func pe(err error) {
+	if err != nil {
+		mlog.Print(err)
+	}
 }
