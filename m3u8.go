@@ -24,15 +24,17 @@ func NewFromURL(nextURL func() string) *M3U8 {
 	url := nextURL()
 	go func(w *io.PipeWriter) {
 		var (
-			resp *http.Response
-			err  error
-			buf  bytes.Buffer
+			resp  *http.Response
+			err   error
+			buf   bytes.Buffer
+			timer time.Time
 		)
 		for {
 			if url == "" {
 				w.CloseWithError(io.EOF)
 				return
 			}
+			timer = time.Now()
 			resp, err = getResp(url, tryTimes)
 			if err != nil {
 				mlog.Print(err)
@@ -54,7 +56,11 @@ func NewFromURL(nextURL func() string) *M3U8 {
 				}
 				return
 			}
-			time.Sleep(t)
+			t = (t - time.Since(timer).Seconds()) * 1000
+			if t > 0 {
+				duration := time.Duration(t) * time.Millisecond
+				time.Sleep(duration)
+			}
 			url = nextURL()
 		}
 	}(w)
@@ -106,7 +112,7 @@ func (m *M3U8) PlayList() io.Reader {
 	return r
 }
 
-func getWaitTime(buf *bytes.Buffer) (time.Duration, bool) {
+func getWaitTime(buf *bytes.Buffer) (float64, bool) {
 	by := bytes.TrimSpace(buf.Bytes())
 	if bytes.HasSuffix(by, []byte(endList)) {
 		return 0, true
@@ -117,7 +123,7 @@ func getWaitTime(buf *bytes.Buffer) (time.Duration, bool) {
 		if line != "" && strings.HasPrefix(line, duration) {
 			_, value := getValue(line, duration)
 			if t, err := strconv.Atoi(value); err == nil {
-				return time.Duration(t) * time.Second, false
+				return float64(t), false
 			}
 		}
 	}
