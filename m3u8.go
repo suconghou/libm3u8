@@ -91,21 +91,29 @@ func (m *M3U8) PlayList() io.Reader {
 			line := scanner.Text()
 			w.Write([]byte(m.base + line + "\n"))
 		}
+		if err := scanner.Err(); err != nil {
+			w.CloseWithError(err)
+		} else {
+			w.CloseWithError(io.EOF)
+		}
 	}(w)
 	return r
 }
 
 func getWaitTime(buf *bytes.Buffer) (time.Duration, bool) {
+	by := bytes.TrimSpace(buf.Bytes())
+	if bytes.HasSuffix(by, []byte(endList)) {
+		return 0, true
+	}
 	scanner := bufio.NewScanner(buf)
-	const k = "#EXT-X-TARGETDURATION"
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		if line != "" && strings.HasPrefix(line, k) {
-			_, value := getValue(line, k)
+		if line != "" && strings.HasPrefix(line, duration) {
+			_, value := getValue(line, duration)
 			if t, err := strconv.Atoi(value); err == nil {
-				return time.Duration(t) * time.Second, bytes.HasSuffix(buf.Bytes(), []byte("#EXT-X-ENDLIST"))
+				return time.Duration(t) * time.Second, false
 			}
 		}
 	}
-	return time.Second, true
+	return 0, true
 }
