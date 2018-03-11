@@ -36,16 +36,22 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			resp, err = getResp(url, tryTimes)
 			if err != nil {
 				mlog.Print(err)
+				w.CloseWithError(err) // get response failed many times then exit
+				return
 			}
 			_, err = io.Copy(w, io.TeeReader(resp.Body, &buf))
 			resp.Body.Close()
 			if err != nil {
-				mlog.Print(err)
+				mlog.Print(err) // copy failed but we check content by getWaitTime ensure if exit
 			}
 			t, last := getWaitTime(&buf)
 			buf.Reset()
 			if last {
-				w.CloseWithError(io.EOF)
+				if err == nil {
+					w.CloseWithError(io.EOF)
+				} else {
+					w.CloseWithError(err)
+				}
 				return
 			}
 			time.Sleep(t)
@@ -115,5 +121,5 @@ func getWaitTime(buf *bytes.Buffer) (time.Duration, bool) {
 			}
 		}
 	}
-	return 0, true
+	return 0, true // not found endList or duration mybe content is not m3u8 response flag to exit
 }
