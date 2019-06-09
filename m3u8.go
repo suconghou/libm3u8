@@ -10,6 +10,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/suconghou/libm3u8/parser"
+	"github.com/suconghou/libm3u8/util"
+)
+
+const tryTimes uint8 = 5
+
+const (
+	endList  = "#EXT-X-ENDLIST"
+	inf      = "#EXTINF"
+	duration = "#EXT-X-TARGETDURATION"
 )
 
 // M3U8 resource
@@ -34,16 +45,16 @@ func NewFromURL(nextURL func() string) *M3U8 {
 				w.CloseWithError(io.EOF)
 				return
 			}
-			resp, err = getResp(url, tryTimes)
+			resp, err = util.GetResp(url, tryTimes)
 			if err != nil {
-				mlog.Print(err)
+				util.Log.Print(err)
 				w.CloseWithError(err) // get response failed many times then exit
 				return
 			}
 			_, err = io.Copy(w, io.TeeReader(resp.Body, &buf))
 			resp.Body.Close()
 			if err != nil {
-				mlog.Print(err) // copy failed but we check content by getWaitTime ensure if exit
+				util.Log.Print(err) // copy failed but we check content by getWaitTime ensure if exit
 			}
 			t, last := getWaitTime(&buf)
 			buf.Reset()
@@ -80,7 +91,7 @@ func NewFromFile(path string) (*M3U8, error) {
 
 // NewFromReader get data from reader
 func NewFromReader(scanner *bufio.Scanner) *M3U8 {
-	r := Parse(scanner)
+	r := parser.Parse(scanner)
 	return &M3U8{Reader: r}
 }
 
@@ -121,7 +132,7 @@ func getWaitTime(buf *bytes.Buffer) (float64, bool) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line != "" && strings.HasPrefix(line, duration) {
-			_, value := getValue(line, duration)
+			_, value := util.GetValue(line, duration)
 			if t, err := strconv.Atoi(value); err == nil {
 				return float64(t), false
 			}

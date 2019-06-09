@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/suconghou/libm3u8/util"
 )
 
 // NewReader join url response to one io.Reader
@@ -15,8 +17,8 @@ func NewReader(scanner *bufio.Scanner) io.Reader {
 		var errTimes = 0
 		for scanner.Scan() {
 			url := strings.TrimSpace(scanner.Text())
-			if isURL(url) {
-				resp, err := getResp(url, tryTimes)
+			if util.IsURL(url) {
+				resp, err := util.GetResp(url, tryTimes)
 				if err != nil { // error too many times then we give up
 					w.CloseWithError(err)
 					return
@@ -29,7 +31,7 @@ func NewReader(scanner *bufio.Scanner) io.Reader {
 						w.CloseWithError(err) // copy failed too many times then we give up
 						return
 					}
-					mlog.Print(err)
+					util.Log.Print(err)
 				}
 			}
 		}
@@ -44,7 +46,7 @@ func NewReader(scanner *bufio.Scanner) io.Reader {
 
 // NewReaderFromURL return io.reader which join urllist response from url
 func NewReaderFromURL(url string) (io.Reader, error) {
-	resp, err := getResp(url, tryTimes)
+	resp, err := util.GetResp(url, tryTimes)
 	if err != nil {
 		return nil, err
 	}

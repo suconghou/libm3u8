@@ -1,9 +1,11 @@
-package libm3u8
+package parser
 
 import (
 	"bufio"
 	"io"
 	"strings"
+
+	"github.com/suconghou/libm3u8/util"
 )
 
 const (
@@ -23,15 +25,15 @@ func Parse(scanner *bufio.Scanner) io.Reader {
 			if line == "" {
 				continue
 			}
-			if found, _ := getValue(line, endList); found {
+			if found, _ := util.GetValue(line, endList); found {
 				w.CloseWithError(io.EOF)
 				break
 			}
-			if found, _ := getValue(line, inf); found {
+			if found, _ := util.GetValue(line, inf); found {
 				flag = true
 				continue
 			}
-			if found, _ := getValue(line, "#"); (!found) && flag {
+			if found, _ := util.GetValue(line, "#"); (!found) && flag {
 				if set[line] {
 					continue
 				} else {

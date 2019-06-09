@@ -34,3 +34,9 @@ r := libm3u8.NewReader(scanner *bufio.Scanner)
 ```
 
 get stream data by url list
+
+new design 
+
+inner cache 
+
+retry

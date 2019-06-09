@@ -1,4 +1,4 @@
-package libm3u8
+package util
 
 import (
 	"fmt"
@@ -11,23 +11,21 @@ import (
 	"time"
 )
 
-const tryTimes uint8 = 5
-
 var (
-	mlog   = log.New(os.Stderr, "", log.Lshortfile)
-	urlreg = regexp.MustCompile(`^(?i:https?)://[[:print:]]+$`)
+	Log    = log.New(os.Stderr, "", log.Lshortfile)
+	urlreg = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
 	client = &http.Client{Timeout: time.Duration(60) * time.Second}
 )
 
-func isURL(url string) bool {
+func IsURL(url string) bool {
 	return urlreg.MatchString(url)
 }
 
-func respOk(resp *http.Response) bool {
+func RespOk(resp *http.Response) bool {
 	return resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed
 }
 
-func getResp(url string, tryTimes uint8) (*http.Response, error) {
+func GetResp(url string, tryTimes uint8) (*http.Response, error) {
 	var (
 		resp  *http.Response
 		err   error
@@ -37,7 +35,7 @@ func getResp(url string, tryTimes uint8) (*http.Response, error) {
 		resp, err = client.Get(url)
 		times++
 		if err == nil {
-			if respOk(resp) {
+			if RespOk(resp) {
 				break
 			} else {
 				err = fmt.Errorf(resp.Status)
@@ -51,8 +49,8 @@ func getResp(url string, tryTimes uint8) (*http.Response, error) {
 	return resp, err
 }
 
-func getContent(url string, tryTimes uint8) ([]byte, error) {
-	resp, err := getResp(url, tryTimes)
+func GetContent(url string, tryTimes uint8) ([]byte, error) {
+	resp, err := GetResp(url, tryTimes)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +59,7 @@ func getContent(url string, tryTimes uint8) ([]byte, error) {
 }
 
 // parse string like #EXT-X-MEDIA-SEQUENCE:1586
-func getValue(line string, k string) (bool, string) {
+func GetValue(line string, k string) (bool, string) {
 	if strings.HasPrefix(line, k) {
 		str := strings.Replace(line, k+":", "", 1)
 		return true, str
