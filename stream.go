@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -46,23 +47,19 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			}
 			body, err = util.GetBody(url)
 			if err != nil {
-				util.Log.Print(err)
 				w.CloseWithError(err) // get response failed many times then exit
 				return
 			}
 			_, err = io.Copy(w, io.TeeReader(body, &buf))
 			body.Close()
 			if err != nil {
-				util.Log.Print(err) // copy failed but we check content by getSegmentInfo ensure if exit
+				w.CloseWithError(err)
+				return
 			}
 			t, last := getSegmentInfo(&buf)
 			buf.Reset()
 			if last {
-				if err == nil {
-					w.CloseWithError(io.EOF)
-				} else {
-					w.CloseWithError(err)
-				}
+				w.CloseWithError(io.EOF)
 				return
 			}
 			st := int64(float64(t)-time.Since(timer).Seconds()) * 1000
@@ -73,12 +70,15 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			url = nextURL()
 		}
 	}(w)
-	var base = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
+	var (
+		base = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
+		ur   = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
+	)
 	m := NewFromReader(r, func(u string) string {
-		if strings.HasPrefix(u, "http") {
+		if ur.MatchString(u) {
 			return u
 		}
-		return path.Join(base, u)
+		return base + strings.TrimLeft(u, "/")
 	})
 	return m
 }

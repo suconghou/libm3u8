@@ -7,21 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"regexp"
 	"time"
 )
 
 var (
 	// Log to stderr
 	Log    = log.New(os.Stderr, "", log.Lshortfile)
-	urlreg = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
 	client = &http.Client{Timeout: time.Duration(600) * time.Second}
 )
-
-// IsURL return true if url like
-func IsURL(url string) bool {
-	return urlreg.MatchString(url)
-}
 
 // GetResp try max 5 time to get http response and make sure 200-299
 func GetResp(url string) (*http.Response, error) {

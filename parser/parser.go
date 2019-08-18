@@ -13,7 +13,7 @@ func Parse(scanner *bufio.Scanner, formater func(string) string) io.Reader {
 		urls := map[string]bool{}
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") || urls[line] {
+			if line == "" || strings.HasPrefix(line, "#") {
 				continue
 			}
 			if formater != nil {
@@ -21,6 +21,9 @@ func Parse(scanner *bufio.Scanner, formater func(string) string) io.Reader {
 				if line == "" {
 					continue
 				}
+			}
+			if urls[line] {
+				continue
 			}
 			w.Write([]byte(line + "\n"))
 			urls[line] = true

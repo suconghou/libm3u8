@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/suconghou/libm3u8/multipipe"
+	"github.com/suconghou/libm3u8/util"
 )
 
 // M3U8 resource
@@ -18,6 +19,9 @@ func (m *M3U8) Play() io.Reader {
 	return multipipe.ConcatReaderByURL(func() string {
 		if scanner.Scan() {
 			return scanner.Text()
+		}
+		if err := scanner.Err(); err != nil {
+			util.Log.Print(err)
 		}
 		return ""
 	})

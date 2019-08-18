@@ -9,10 +9,10 @@ init
 m := libm3u8.NewFromURL(nextURL)
 ```
 
-for file links
+for play list links
 
 ```
-io.Copy(os.Stdout, m.PlayList())
+io.Copy(os.Stdout, m)
 ```
 
 for stream download
@@ -20,23 +20,25 @@ for stream download
 io.Copy(os.Stdout, m.Play())
 ```
 
-for origin url
-```
-io.Copy(os.Stdout, m)
-```
 
 
+### cmd
 
-### url links
+play a m3u8 url
 
 ```
-r := libm3u8.NewReader(scanner *bufio.Scanner)
+./main play http://xxx | mpv -
 ```
 
-get stream data by url list
 
-new design 
+print playlist by m3u8 url
 
-inner cache 
+```
+./main list http://xxx
+```
 
-retry
+read playlist url
+
+```
+cat playlist.txt | ./main | mpv -
+```
