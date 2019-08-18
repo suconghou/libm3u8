@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"io"
 	"log"
 	"os"
@@ -19,10 +18,10 @@ func main() {
 		case "play":
 			play()
 		case "list":
-			playList()
+			list()
 		}
 	} else {
-		playStream()
+		stream()
 	}
 }
 
@@ -32,15 +31,15 @@ func play() {
 	pe(err)
 }
 
-func playList() {
+func list() {
 	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
 	_, err := io.Copy(os.Stdout, m)
 	pe(err)
 }
 
-func playStream() {
-	m := libm3u8.NewReader(bufio.NewScanner(os.Stdin))
-	_, err := io.Copy(os.Stdout, m)
+func stream() {
+	m := libm3u8.NewFromReader(os.Stdin, nil)
+	_, err := io.Copy(os.Stdout, m.Play())
 	pe(err)
 }
 

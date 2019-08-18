@@ -4,44 +4,26 @@ import (
 	"bufio"
 	"io"
 	"strings"
-
-	"github.com/suconghou/libm3u8/util"
 )
 
-const (
-	endList  = "#EXT-X-ENDLIST"
-	inf      = "#EXTINF"
-	duration = "#EXT-X-TARGETDURATION"
-)
-
-// Parse do loop parse
-func Parse(scanner *bufio.Scanner) io.Reader {
+// Parse until scanner end and give each url,caller should stop scanner
+func Parse(scanner *bufio.Scanner, formater func(string) string) io.Reader {
 	r, w := io.Pipe()
 	go func(w *io.PipeWriter) {
-		set := make(map[string]bool)
-		var flag bool
+		urls := map[string]bool{}
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
+			if line == "" || strings.HasPrefix(line, "#") || urls[line] {
 				continue
 			}
-			if found, _ := util.GetValue(line, endList); found {
-				w.CloseWithError(io.EOF)
-				break
-			}
-			if found, _ := util.GetValue(line, inf); found {
-				flag = true
-				continue
-			}
-			if found, _ := util.GetValue(line, "#"); (!found) && flag {
-				if set[line] {
+			if formater != nil {
+				line = formater(line)
+				if line == "" {
 					continue
-				} else {
-					w.Write([]byte(line + "\n"))
-					set[line] = true
 				}
 			}
-			flag = false
+			w.Write([]byte(line + "\n"))
+			urls[line] = true
 		}
 		if err := scanner.Err(); err != nil {
 			w.CloseWithError(err)

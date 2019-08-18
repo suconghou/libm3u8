@@ -2,67 +2,63 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"time"
 )
 
 var (
+	// Log to stderr
 	Log    = log.New(os.Stderr, "", log.Lshortfile)
 	urlreg = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
-	client = &http.Client{Timeout: time.Duration(60) * time.Second}
+	client = &http.Client{Timeout: time.Duration(600) * time.Second}
 )
 
+// IsURL return true if url like
 func IsURL(url string) bool {
 	return urlreg.MatchString(url)
 }
 
-func RespOk(resp *http.Response) bool {
-	return resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed
-}
-
-func GetResp(url string, tryTimes uint8) (*http.Response, error) {
+// GetResp try max 5 time to get http response and make sure 200-299
+func GetResp(url string) (*http.Response, error) {
 	var (
 		resp  *http.Response
 		err   error
 		times uint8
 	)
-	for {
+	for ; times < 5; times++ {
 		resp, err = client.Get(url)
-		times++
 		if err == nil {
-			if RespOk(resp) {
+			if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
 				break
 			} else {
 				err = fmt.Errorf(resp.Status)
 			}
-		}
-		if times > tryTimes {
-			break
 		}
 		time.Sleep(time.Millisecond)
 	}
 	return resp, err
 }
 
-func GetContent(url string, tryTimes uint8) ([]byte, error) {
-	resp, err := GetResp(url, tryTimes)
+// GetBody return http response body
+func GetBody(url string) (io.ReadCloser, error) {
+	resp, err := GetResp(url)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	return resp.Body, err
 }
 
-// parse string like #EXT-X-MEDIA-SEQUENCE:1586
-func GetValue(line string, k string) (bool, string) {
-	if strings.HasPrefix(line, k) {
-		str := strings.Replace(line, k+":", "", 1)
-		return true, str
+// GetBodyContent read http url 200 response body
+func GetBodyContent(url string) ([]byte, error) {
+	body, err := GetBody(url)
+	if err != nil {
+		return nil, err
 	}
-	return false, ""
+	defer body.Close()
+	return ioutil.ReadAll(body)
 }
