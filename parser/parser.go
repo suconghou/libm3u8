@@ -31,7 +31,7 @@ func Parse(scanner *bufio.Scanner, formater func(string) string) io.Reader {
 		if err := scanner.Err(); err != nil {
 			w.CloseWithError(err)
 		} else {
-			w.CloseWithError(io.EOF)
+			w.Close()
 		}
 	}(w)
 	return r
