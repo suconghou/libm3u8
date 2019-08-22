@@ -42,9 +42,10 @@ func NewFromURL(nextURL func() string) *M3U8 {
 		)
 		for {
 			if url == "" {
-				w.CloseWithError(io.EOF)
+				w.Close()
 				return
 			}
+			w.Write([]byte("\n"))
 			body, err = util.GetBody(url)
 			if err != nil {
 				w.CloseWithError(err) // get response failed many times then exit
@@ -59,7 +60,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			t, last := getSegmentInfo(&buf)
 			buf.Reset()
 			if last {
-				w.CloseWithError(io.EOF)
+				w.Close()
 				return
 			}
 			st := int64(float64(t)-time.Since(timer).Seconds()) * 1000
