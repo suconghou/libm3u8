@@ -1,6 +1,7 @@
 package util
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,7 +14,12 @@ import (
 var (
 	// Log to stderr
 	Log    = log.New(os.Stderr, "", log.Lshortfile)
-	client = &http.Client{Timeout: time.Duration(600) * time.Second}
+	client = &http.Client{
+		Timeout: time.Duration(60) * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 )
 
 // GetResp try max 5 time to get http response and make sure 200-299
