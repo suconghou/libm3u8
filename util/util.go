@@ -15,7 +15,7 @@ var (
 	// Log to stderr
 	Log    = log.New(os.Stderr, "", log.Lshortfile)
 	client = &http.Client{
-		Timeout: time.Duration(60) * time.Second,
+		Timeout: time.Minute * 5,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
