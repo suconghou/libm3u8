@@ -38,7 +38,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			body  io.ReadCloser
 			err   error
 			buf   bytes.Buffer
-			timer time.Time = time.Now()
+			timer = time.Now()
 		)
 		for {
 			if url == "" {
@@ -63,7 +63,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 				w.Close()
 				return
 			}
-			st := int64(float64(t)-time.Since(timer).Seconds()) * 1000
+			st := int64((float64(t) - time.Since(timer).Seconds()) * 1000)
 			if st > 0 {
 				time.Sleep(time.Duration(st) * time.Millisecond)
 			}
@@ -72,14 +72,20 @@ func NewFromURL(nextURL func() string) *M3U8 {
 		}
 	}(w)
 	var (
-		base = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
-		ur   = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
+		base     = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
+		ur       = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
+		basePart = strings.SplitAfterN(base, "/", 4)
 	)
 	m := NewFromReader(r, func(u string) string {
 		if ur.MatchString(u) {
 			return u
 		}
-		return base + strings.TrimLeft(u, "/")
+		if strings.HasPrefix(u, "/") {
+			basePart[3] = strings.TrimLeft(u, "/")
+			return strings.Join(basePart, "")
+		}
+		return base + u
+
 	})
 	return m
 }
