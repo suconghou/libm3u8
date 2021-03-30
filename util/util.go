@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -59,5 +58,5 @@ func GetBodyContent(url string) ([]byte, error) {
 		return nil, err
 	}
 	defer body.Close()
-	return ioutil.ReadAll(body)
+	return io.ReadAll(body)
 }

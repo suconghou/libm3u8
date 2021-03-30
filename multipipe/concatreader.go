@@ -12,6 +12,10 @@ func ConcatReader(fn func() (io.ReadCloser, error)) io.Reader {
 	go func(w *io.PipeWriter) {
 		for {
 			source, err := fn()
+			if err == io.EOF {
+				w.Close()
+				return
+			}
 			if err != nil {
 				w.CloseWithError(err)
 				return
