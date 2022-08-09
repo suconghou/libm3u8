@@ -11,16 +11,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/suconghou/libm3u8/parser"
-	"github.com/suconghou/libm3u8/util"
+	"libm3u8/util"
 )
 
-// NewFromReader reader to parse url list
+// NewFromReader 从reader中读取输入行
 func NewFromReader(r io.Reader, formater func(string) string) *M3U8 {
-	return &M3U8{Reader: parser.Parse(bufio.NewScanner(r), formater)}
+	return &M3U8{Reader: pipeThrough(bufio.NewScanner(r), formater)}
 }
 
-// NewFromFile parse file content
+// NewFromFile 从文件中读取输入行
 func NewFromFile(path string, formater func(string) string) (*M3U8, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -29,7 +28,7 @@ func NewFromFile(path string, formater func(string) string) (*M3U8, error) {
 	return NewFromReader(file, formater), nil
 }
 
-// NewFromURL return m3u8
+// NewFromURL 根据返回的URL,下载解析URL body作为输入行
 func NewFromURL(nextURL func() string) *M3U8 {
 	r, w := io.Pipe()
 	url := nextURL()
@@ -88,6 +87,37 @@ func NewFromURL(nextURL func() string) *M3U8 {
 
 	})
 	return m
+}
+
+// 从scanner中读取行，过滤掉注释和重复的行，返回不重复的行
+func pipeThrough(scanner *bufio.Scanner, formater func(string) string) io.Reader {
+	r, w := io.Pipe()
+	go func(w *io.PipeWriter) {
+		urls := map[string]bool{}
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			if formater != nil {
+				line = formater(line)
+				if line == "" {
+					continue
+				}
+			}
+			if urls[line] {
+				continue
+			}
+			w.Write([]byte(line + "\n"))
+			urls[line] = true
+		}
+		if err := scanner.Err(); err != nil {
+			w.CloseWithError(err)
+		} else {
+			w.Close()
+		}
+	}(w)
+	return r
 }
 
 func getSegmentInfo(buf *bytes.Buffer) (int, bool) {

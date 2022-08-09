@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -17,6 +18,16 @@ var (
 		Timeout: time.Minute * 5,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			Proxy:           http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
 )
@@ -34,7 +45,7 @@ func GetResp(url string) (*http.Response, error) {
 			if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
 				break
 			} else {
-				err = fmt.Errorf(resp.Status)
+				err = fmt.Errorf("%s:%s", url, resp.Status)
 			}
 		}
 		time.Sleep(time.Millisecond)
@@ -49,14 +60,4 @@ func GetBody(url string) (io.ReadCloser, error) {
 		return nil, err
 	}
 	return resp.Body, err
-}
-
-// GetBodyContent read http url 200 response body
-func GetBodyContent(url string) ([]byte, error) {
-	body, err := GetBody(url)
-	if err != nil {
-		return nil, err
-	}
-	defer body.Close()
-	return io.ReadAll(body)
 }

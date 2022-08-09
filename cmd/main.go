@@ -4,8 +4,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/suconghou/libm3u8"
-	"github.com/suconghou/libm3u8/util"
+	"libm3u8"
+	"libm3u8/util"
 )
 
 func main() {

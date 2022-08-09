@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"io"
 
-	"github.com/suconghou/libm3u8/multipipe"
-	"github.com/suconghou/libm3u8/util"
+	"libm3u8/multipipe"
+	"libm3u8/util"
 )
 
 // M3U8 resource
@@ -24,5 +24,5 @@ func (m *M3U8) Play() io.Reader {
 			util.Log.Print(err)
 		}
 		return ""
-	})
+	}, nil)
 }
