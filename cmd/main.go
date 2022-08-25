@@ -80,12 +80,13 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	var m3u8URL = target.String()
 	var m = libm3u8.NewFromURL(func() string {
 		select {
 		case <-r.Context().Done():
 			return "" // 标记关闭输入端
 		default:
-			return target.String()
+			return m3u8URL
 		}
 	})
 	var stream = m.Stream(nil)
