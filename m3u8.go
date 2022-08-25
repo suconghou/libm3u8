@@ -165,7 +165,7 @@ func value(line string, k string) (bool, string) {
 }
 
 // return ts file streaming
-func (m *M3U8) Stream() *io.PipeReader {
+func (m *M3U8) Stream(loader func(string) (io.ReadCloser, error)) *io.PipeReader {
 	if m.stream != nil {
 		return m.stream
 	}
@@ -178,6 +178,6 @@ func (m *M3U8) Stream() *io.PipeReader {
 			util.Log.Print(err)
 		}
 		return ""
-	}, nil)
+	}, loader)
 	return m.stream
 }
