@@ -23,7 +23,7 @@ type M3U8 struct {
 
 // NewFromReader 从reader中读取输入行
 func NewFromReader(r io.ReadCloser, formater func(string) string) *M3U8 {
-	return &M3U8{pipeThrough(bufio.NewScanner(r), formater), nil}
+	return &M3U8{pipeThrough(r, formater), nil}
 }
 
 // NewFromFile 从文件中读取输入行
@@ -101,9 +101,11 @@ func NewFromURL(nextURL func() string) *M3U8 {
 }
 
 // 从scanner中读取行，过滤掉注释和重复的行，返回不重复的行
-func pipeThrough(scanner *bufio.Scanner, formater func(string) string) *io.PipeReader {
+func pipeThrough(rr io.ReadCloser, formater func(string) string) *io.PipeReader {
+	var scanner = bufio.NewScanner(rr)
 	r, w := io.Pipe()
 	go func(w *io.PipeWriter) {
+		defer rr.Close()
 		urls := map[string]bool{}
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
