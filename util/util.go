@@ -13,7 +13,7 @@ import (
 
 var (
 	// Log to stderr
-	Log    = log.New(os.Stderr, "", log.Lshortfile)
+	Log    = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 	client = &http.Client{
 		Timeout: time.Minute * 5,
 		Transport: &http.Transport{
