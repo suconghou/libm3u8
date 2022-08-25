@@ -4,14 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"libm3u8"
-	"libm3u8/util"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/suconghou/libm3u8"
+	"github.com/suconghou/libm3u8/util"
 )
 
 var (
