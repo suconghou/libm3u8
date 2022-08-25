@@ -17,8 +17,8 @@ import (
 
 // M3U8 resource
 type M3U8 struct {
-	io.ReadCloser
-	stream io.ReadCloser
+	*io.PipeReader
+	stream *io.PipeReader
 }
 
 // NewFromReader 从reader中读取输入行
@@ -101,7 +101,7 @@ func NewFromURL(nextURL func() string) *M3U8 {
 }
 
 // 从scanner中读取行，过滤掉注释和重复的行，返回不重复的行
-func pipeThrough(scanner *bufio.Scanner, formater func(string) string) io.ReadCloser {
+func pipeThrough(scanner *bufio.Scanner, formater func(string) string) *io.PipeReader {
 	r, w := io.Pipe()
 	go func(w *io.PipeWriter) {
 		urls := map[string]bool{}
@@ -163,7 +163,7 @@ func value(line string, k string) (bool, string) {
 }
 
 // return ts file streaming
-func (m *M3U8) Stream() io.ReadCloser {
+func (m *M3U8) Stream() *io.PipeReader {
 	if m.stream != nil {
 		return m.stream
 	}

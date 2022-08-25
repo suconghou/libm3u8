@@ -17,7 +17,7 @@ io.Copy(os.Stdout, m)
 
 for stream download
 ```
-io.Copy(os.Stdout, m.Play())
+io.Copy(os.Stdout, m.Stream())
 ```
 
 

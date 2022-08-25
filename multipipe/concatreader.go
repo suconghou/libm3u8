@@ -7,7 +7,7 @@ import (
 )
 
 // ConcatReader 将函数返回的ReadCloser流组装为一个Reader流，直到fn返回错误（io.EOF视为正确结束，其他视为错误）或者io.Copy错误
-func ConcatReader(fn func() (io.ReadCloser, error)) io.ReadCloser {
+func ConcatReader(fn func() (io.ReadCloser, error)) *io.PipeReader {
 	r, w := io.Pipe()
 	go func(w *io.PipeWriter) {
 		for {
@@ -32,7 +32,7 @@ func ConcatReader(fn func() (io.ReadCloser, error)) io.ReadCloser {
 }
 
 // ConcatReaderByURL 将函数返回的url视为文件地址，程序请求此http地址并将这些流全部拼接为一个Reader,函数返回空地址视为正确结束
-func ConcatReaderByURL(fn func() string, loader func(string) (io.ReadCloser, error)) io.ReadCloser {
+func ConcatReaderByURL(fn func() string, loader func(string) (io.ReadCloser, error)) *io.PipeReader {
 	if loader == nil {
 		loader = util.GetBody
 	}
