@@ -170,14 +170,11 @@ func (m *M3U8) Stream(loader func(string) (io.ReadCloser, error)) *io.PipeReader
 		return m.stream
 	}
 	var scanner = bufio.NewScanner(m)
-	m.stream = multipipe.ConcatReaderByURL(func() string {
+	m.stream = multipipe.ConcatReaderByURL(func() (string, error) {
 		if scanner.Scan() {
-			return scanner.Text()
+			return scanner.Text(), nil
 		}
-		if err := scanner.Err(); err != nil {
-			util.Log.Print(err)
-		}
-		return ""
+		return "", scanner.Err()
 	}, loader)
 	return m.stream
 }

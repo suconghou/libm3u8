@@ -77,20 +77,29 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 	u = strings.Replace(strings.TrimPrefix(u, "/"), ":/", "://", 1)
 	target, err := url.Parse(u)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var m3u8URL = target.String()
-	var m = libm3u8.NewFromURL(func() string {
-		select {
-		case <-r.Context().Done():
-			return "" // 标记关闭输入端
-		default:
-			return m3u8URL
-		}
-	})
-	var stream = m.Stream(nil)
-	io.Copy(w, stream)
+	var (
+		m3u8URL = target.String()
+		m       = libm3u8.NewFromURL(func() string {
+			select {
+			case <-r.Context().Done():
+				return "" // 标记关闭输入端
+			default:
+				return m3u8URL
+			}
+		})
+		stream = m.Stream(nil)
+	)
+	n, err := io.Copy(w, stream)
 	m.Close()      // 关闭地址分析
 	stream.Close() // 关闭ts合成流
+	if err != nil {
+		if n < 1 {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			util.Log.Print(err)
+		}
+	}
 }

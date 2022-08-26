@@ -32,12 +32,15 @@ func ConcatReader(fn func() (io.ReadCloser, error)) *io.PipeReader {
 }
 
 // ConcatReaderByURL 将函数返回的url视为文件地址，程序请求此http地址并将这些流全部拼接为一个Reader,函数返回空地址视为正确结束
-func ConcatReaderByURL(fn func() string, loader func(string) (io.ReadCloser, error)) *io.PipeReader {
+func ConcatReaderByURL(fn func() (string, error), loader func(string) (io.ReadCloser, error)) *io.PipeReader {
 	if loader == nil {
 		loader = util.GetBody
 	}
 	return ConcatReader(func() (io.ReadCloser, error) {
-		url := fn()
+		url, err := fn()
+		if err != nil {
+			return nil, err
+		}
 		if url == "" {
 			return nil, io.EOF
 		}

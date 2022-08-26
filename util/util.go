@@ -42,7 +42,7 @@ func GetResp(url string) (*http.Response, error) {
 	for ; times < 5; times++ {
 		resp, err = client.Get(url)
 		if err == nil {
-			if resp.StatusCode >= http.StatusOK && resp.StatusCode <= http.StatusIMUsed {
+			if resp.StatusCode/100 == 2 {
 				break
 			} else {
 				err = fmt.Errorf("%s:%s", url, resp.Status)
