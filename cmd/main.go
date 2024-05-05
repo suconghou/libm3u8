@@ -118,38 +118,42 @@ func file(w http.ResponseWriter, r *http.Request) error {
 				continue
 			}
 			s.WriteString(fmt.Sprintf("#EXTINF:%.1f\n", d))
-			s.WriteString(fmt.Sprintf("%s?range=%d-%d\n", fname, offset, offset+length-1))
+			s.WriteString(fmt.Sprintf("%s.ts?range=%d-%d\n", fname, offset, offset+length-1))
 		}
 		var body strings.Builder
 		body.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
 		body.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(maxDuration))))
 		if x > 0 && y > 0 && y > x {
-			body.WriteString(fmt.Sprintf("#EXT-X-MAP:URI=\"%s?range=%d-%d\"\n", fname, x, y))
+			body.WriteString(fmt.Sprintf("#EXT-X-MAP:URI=\"%s.ts?range=%d-%d\"\n", fname, x, y))
 		}
 		body.WriteString(s.String())
 		_, err = w.Write([]byte(body.String()))
 		return err
-	}
-	f, err := os.Open(fname)
-	if err != nil {
+	} else if strings.HasSuffix(fname, ".ts") {
+		fname = strings.Replace(fname, ".ts", "", -1)
+		f, err := os.Open(fname)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		var arr = strings.Split(r.URL.Query().Get("range"), "-")
+		start, err := strconv.ParseInt(arr[0], 10, 64)
+		if err != nil {
+			return err
+		}
+		end, err := strconv.ParseInt(arr[1], 10, 64)
+		if err != nil {
+			return err
+		}
+		var buf = make([]byte, end-start+1)
+		if _, err = f.ReadAt(buf, start); err != nil {
+			return err
+		}
+		_, err = w.Write(buf)
 		return err
 	}
-	defer f.Close()
-	var arr = strings.Split(r.URL.Query().Get("range"), "-")
-	start, err := strconv.ParseInt(arr[0], 10, 64)
-	if err != nil {
-		return err
-	}
-	end, err := strconv.ParseInt(arr[1], 10, 64)
-	if err != nil {
-		return err
-	}
-	var buf = make([]byte, end-start+1)
-	if _, err = f.ReadAt(buf, start); err != nil {
-		return err
-	}
-	_, err = w.Write(buf)
-	return err
+	http.ServeFile(w, r, fname)
+	return nil
 }
 
 func routeMatch(w http.ResponseWriter, r *http.Request) {
