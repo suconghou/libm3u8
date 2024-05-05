@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -129,12 +130,26 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		_, err = w.Write([]byte(body.String()))
 		return err
 	}
-	var ran = r.URL.Query().Get("range")
-	if r.Header.Get("range") == "" && ran != "" {
-		r.Header.Set("range", fmt.Sprintf("bytes=%s", ran))
+	f, err := os.Open(fname)
+	if err != nil {
+		return err
 	}
-	http.ServeFile(w, r, fname)
-	return nil
+	defer f.Close()
+	var arr = strings.Split(r.URL.Query().Get("range"), "-")
+	start, err := strconv.ParseInt(arr[0], 10, 64)
+	if err != nil {
+		return err
+	}
+	end, err := strconv.ParseInt(arr[1], 10, 64)
+	if err != nil {
+		return err
+	}
+	var buf = make([]byte, end-start+1)
+	if _, err = f.ReadAt(buf, start); err != nil {
+		return err
+	}
+	_, err = w.Write(buf)
+	return err
 }
 
 func routeMatch(w http.ResponseWriter, r *http.Request) {
