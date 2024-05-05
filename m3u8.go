@@ -26,7 +26,7 @@ type M3U8 struct {
 	ts chan *TS
 }
 
-// 每次读取分析一片playlist，返回nil则终止,若读取到#EXT-X-ENDLIST则也终止,ReadCloser读取异常则将panic
+// 每次读取分析一片playlist，返回nil则终止,若读取到#EXT-X-ENDLIST则也终止,ReadCloser读取异常则将终止
 // 程序按行解析，忽略最近的重复行，忽略`#EXT-X-`相关
 func New(r func() io.ReadCloser, formater func(string) string) *M3U8 {
 	m := &M3U8{lruset.NewLRUSet(200), make(chan *TS, 5)}
@@ -51,7 +51,8 @@ func New(r func() io.ReadCloser, formater func(string) string) *M3U8 {
 				}
 				if strings.HasPrefix(line, "#EXTINF") {
 					if x, err := value(line); err != nil {
-						panic(err)
+						util.Log.Print(err)
+						return
 					} else {
 						t = x
 					}
@@ -70,7 +71,8 @@ func New(r func() io.ReadCloser, formater func(string) string) *M3U8 {
 				}
 			}
 			if s.Err() != nil {
-				panic(s.Err())
+				util.Log.Print(s.Err())
+				return
 			}
 			time.Sleep(time.Second.Truncate(time.Since(n)))
 		}
@@ -126,7 +128,8 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			}
 			body, err := util.GetBody(url)
 			if err != nil {
-				panic(err)
+				util.Log.Print(err)
+				return nil
 			}
 			return body
 		}
