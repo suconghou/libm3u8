@@ -18,6 +18,7 @@ import (
 type TS struct {
 	duration float64
 	url      string
+	xmuri    string
 }
 
 // M3U8 resource
@@ -41,10 +42,14 @@ func New(r func() io.ReadCloser, formater func(string) string) *M3U8 {
 			s := bufio.NewScanner(a)
 			defer a.Close()
 			var t float64
+			var xm string
 			for s.Scan() {
 				line := strings.TrimSpace(s.Text())
 				if line == "#EXT-X-ENDLIST" {
 					return
+				}
+				if strings.HasPrefix(line, "#EXT-X-MAP") {
+					xm = strings.Split(line, "\"")[1]
 				}
 				if line == "" || strings.HasPrefix(line, "#EXTM3U") || strings.HasPrefix(line, "#EXT-X-") {
 					continue
@@ -65,8 +70,11 @@ func New(r func() io.ReadCloser, formater func(string) string) *M3U8 {
 						if line == "" {
 							continue
 						}
+						if xm != "" {
+							xm = formater(xm)
+						}
 					}
-					m.ts <- &TS{t, line}
+					m.ts <- &TS{t, line, xm}
 					m.l.Add(line)
 				}
 			}
@@ -167,15 +175,23 @@ func (t *TS) URL() string {
 	return t.url
 }
 
-func (t *TS) Bytes() ([]byte, error) {
+func (t *TS) MAP() string {
+	return t.xmuri
+}
+
+func (t *TS) Bytes(m bool) ([]byte, error) {
 	var (
 		times uint8
 		err   error
 		body  io.ReadCloser
 		b     []byte
+		u     = t.url
 	)
+	if m && t.xmuri != "" {
+		u = t.xmuri
+	}
 	for ; times < 5; times++ {
-		body, err = util.GetBody(t.url)
+		body, err = util.GetBody(u)
 		if err == nil {
 			b, err = io.ReadAll(body)
 			body.Close()

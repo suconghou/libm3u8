@@ -102,7 +102,8 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		}
 		var s strings.Builder
 		var maxDuration float64
-		for _, el := range segments {
+		var x, y int
+		for index, el := range segments {
 			d := el[0].(float64)
 			if maxDuration < d {
 				maxDuration = d
@@ -110,12 +111,20 @@ func file(w http.ResponseWriter, r *http.Request) error {
 			arr := el[1].([]any)
 			offset := int(arr[0].(float64))
 			length := int(arr[1].(float64))
+			if index == 0 && d < 0.1 {
+				x = offset
+				y = offset + length - 1
+				continue
+			}
 			s.WriteString(fmt.Sprintf("#EXTINF:%.1f\n", d))
 			s.WriteString(fmt.Sprintf("%s?range=%d-%d\n", fname, offset, offset+length-1))
 		}
 		var body strings.Builder
 		body.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
 		body.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(maxDuration))))
+		if x > 0 && y > 0 && y > x {
+			body.WriteString(fmt.Sprintf("#EXT-X-MAP:URI=\"%s?range=%d-%d\"\n", fname, x, y))
+		}
 		body.WriteString(s.String())
 		_, err = w.Write([]byte(body.String()))
 		return err

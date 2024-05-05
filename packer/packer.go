@@ -29,8 +29,24 @@ func New(m *libm3u8.M3U8, fname string) (*Packer, error) {
 
 // New之后必须调用此方法，此调用阻塞
 func (s *Packer) Receive() (int64, error) {
+	var isFirst = true
 	for ts := range s.m.List() {
-		b, err := ts.Bytes()
+		if isFirst && ts.MAP() != "" {
+			b, err := ts.Bytes(true)
+			if err != nil {
+				return s.p, err
+			}
+			n, err := s.f.Write(b)
+			if err != nil {
+				return s.p, err
+			}
+			if _, err = s.f.WriteAt(s.header(s.p, n, 0), 0); err != nil {
+				return s.p, err
+			}
+			s.p += int64(n)
+			isFirst = false
+		}
+		b, err := ts.Bytes(false)
 		if err != nil {
 			return s.p, err
 		}
@@ -38,9 +54,7 @@ func (s *Packer) Receive() (int64, error) {
 		if err != nil {
 			return s.p, err
 		}
-		_, h := s.header(s.p, n, ts.Duration())
-		_, err = s.f.WriteAt(h, 0)
-		if err != nil {
+		if _, err = s.f.WriteAt(s.header(s.p, n, ts.Duration()), 0); err != nil {
 			return s.p, err
 		}
 		s.p += int64(n)
@@ -48,7 +62,7 @@ func (s *Packer) Receive() (int64, error) {
 	return s.p, nil
 }
 
-func (s *Packer) header(offset int64, n int, d float64) (bool, []byte) {
+func (s *Packer) header(offset int64, n int, d float64) []byte {
 	var isFirst = s.h.Len() < 1
 	if isFirst {
 		s.h.WriteByte('[')
@@ -56,7 +70,7 @@ func (s *Packer) header(offset int64, n int, d float64) (bool, []byte) {
 	} else {
 		s.h.WriteString(fmt.Sprintf(",[%.1f,[%d,%d]]", d, offset, n))
 	}
-	return isFirst, padding(s.h.String())
+	return padding(s.h.String())
 }
 
 // 返回的字节数为65536
