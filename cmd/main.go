@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,9 +84,55 @@ func serve() {
 	util.Log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil))
 }
 
+func file(w http.ResponseWriter, r *http.Request) error {
+	var fname = strings.TrimLeft(r.URL.Path, "/")
+	if strings.HasSuffix(fname, ".m3u8") {
+		fname = strings.Replace(fname, ".m3u8", "", -1)
+		f, err := os.Open(fname)
+		if err != nil {
+			return err
+		}
+		var header = make([]byte, 65536)
+		if _, err = io.ReadFull(f, header); err != nil {
+			return err
+		}
+		var segments [][]any
+		if err := json.Unmarshal(header, &segments); err != nil {
+			return err
+		}
+		var s strings.Builder
+		var maxDuration float64
+		for _, el := range segments {
+			d := el[0].(float64)
+			if maxDuration < d {
+				maxDuration = d
+			}
+			arr := el[1].([]any)
+			offset := int(arr[0].(float64))
+			length := int(arr[1].(float64))
+			s.WriteString(fmt.Sprintf("#EXTINF:%.1f\n", d))
+			s.WriteString(fmt.Sprintf("%s?range=%d-%d\n", fname, offset, offset+length-1))
+		}
+		var body strings.Builder
+		body.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
+		body.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(maxDuration))))
+		body.WriteString(s.String())
+		_, err = w.Write([]byte(body.String()))
+		return err
+	}
+	var ran = r.URL.Query().Get("range")
+	if r.Header.Get("range") == "" && ran != "" {
+		r.Header.Set("range", fmt.Sprintf("bytes=%s", ran))
+	}
+	http.ServeFile(w, r, fname)
+	return nil
+}
+
 func routeMatch(w http.ResponseWriter, r *http.Request) {
 	if !ur.MatchString(r.URL.Path) {
-		http.NotFound(w, r)
+		if err := file(w, r); err != nil {
+			util.Log.Print(err)
+		}
 		return
 	}
 	var u = r.RequestURI
