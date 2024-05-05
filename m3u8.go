@@ -166,3 +166,27 @@ func value(line string) (float64, error) {
 func (t *TS) URL() string {
 	return t.url
 }
+
+func (t *TS) Bytes() ([]byte, error) {
+	var (
+		times uint8
+		err   error
+		body  io.ReadCloser
+		b     []byte
+	)
+	for ; times < 5; times++ {
+		body, err = util.GetBody(t.url)
+		if err == nil {
+			b, err = io.ReadAll(body)
+			body.Close()
+			if err == nil {
+				return b, nil
+			}
+		}
+	}
+	return b, err
+}
+
+func (t *TS) Duration() float64 {
+	return t.duration
+}

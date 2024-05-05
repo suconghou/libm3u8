@@ -9,8 +9,10 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"libm3u8"
+	"libm3u8/packer"
 	"libm3u8/util"
 )
 
@@ -25,6 +27,8 @@ func main() {
 			play(os.Args[2])
 		case "list":
 			list(os.Args[2])
+		case "pack":
+			pack(os.Args[2])
 		case "serve":
 			serve()
 		}
@@ -56,6 +60,15 @@ func stream() {
 	if _, err := io.Copy(os.Stdout, m.Stream(nil)); err != nil {
 		util.Log.Print(err)
 	}
+}
+
+func pack(u string) {
+	fname := fmt.Sprintf("%d", time.Now().Unix())
+	s, err := packer.New(libm3u8.NewFromURL(func() string { return u }), fname)
+	if err != nil {
+		util.Log.Panic(err)
+	}
+	util.Log.Print(s.Receive())
 }
 
 func serve() {
