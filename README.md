@@ -3,17 +3,13 @@
 
 ###  m3u8 file 
 
+
 init
 
 ```
 m := libm3u8.NewFromURL(nextURL)
 ```
 
-for play list links
-
-```
-io.Copy(os.Stdout, m)
-```
 
 for stream download
 ```

@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 
-	"github.com/suconghou/libm3u8"
-	"github.com/suconghou/libm3u8/util"
+	"libm3u8"
+	"libm3u8/util"
 )
 
 var (
@@ -23,9 +22,9 @@ func main() {
 	if len(os.Args) >= 3 {
 		switch os.Args[1] {
 		case "play":
-			play()
+			play(os.Args[2])
 		case "list":
-			list()
+			list(os.Args[2])
 		case "serve":
 			serve()
 		}
@@ -36,17 +35,19 @@ func main() {
 	}
 }
 
-func play() {
-	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
+func play(u string) {
+	m := libm3u8.NewFromURL(func() string { return u })
 	if _, err := io.Copy(os.Stdout, m.Stream(nil)); err != nil {
 		util.Log.Print(err)
 	}
 }
 
-func list() {
-	m := libm3u8.NewFromURL(func() string { return os.Args[2] })
-	if _, err := io.Copy(os.Stdout, m); err != nil {
-		util.Log.Print(err)
+func list(u string) {
+	m := libm3u8.NewFromURL(func() string { return u })
+	for ts := range m.List() {
+		if _, err := fmt.Println(ts.URL()); err != nil {
+			util.Log.Print(err)
+		}
 	}
 }
 
@@ -93,7 +94,6 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 		stream = m.Stream(nil)
 	)
 	n, err := io.Copy(w, stream)
-	m.Close()      // 关闭地址分析
 	stream.Close() // 关闭ts合成流
 	if err != nil {
 		if n < 1 {

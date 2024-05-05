@@ -1,3 +1,3 @@
-module github.com/suconghou/libm3u8
+module libm3u8
 
-go 1.19
+go 1.22

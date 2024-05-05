@@ -3,7 +3,7 @@ package multipipe
 import (
 	"io"
 
-	"github.com/suconghou/libm3u8/util"
+	"libm3u8/util"
 )
 
 // ConcatReader 将函数返回的ReadCloser流组装为一个Reader流，直到fn返回错误（io.EOF视为正确结束，其他视为错误）或者io.Copy错误
