@@ -74,16 +74,17 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 					if m.l.Exists(line) {
 						continue
 					}
+					var l = line
 					if formater != nil {
-						line = formater(line)
-						if line == "" {
+						l = formater(line)
+						if l == "" {
 							continue
 						}
 						if xm != "" {
 							xm = formater(xm)
 						}
 					}
-					m.ts <- &TS{t, line, xm}
+					m.ts <- &TS{t, l, xm}
 					m.l.Add(line)
 				}
 			}

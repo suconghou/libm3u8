@@ -100,8 +100,8 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		}
 		var ll = len(segments)
 		var cut = 0
-		if r.URL.Query().Get("live") != "" && ll >= 10 {
-			cut = ll - 5
+		if r.URL.Query().Get("live") != "" && ll >= 20 {
+			cut = ll - 10
 		}
 		var s = &strings.Builder{}
 		var maxDuration float64
