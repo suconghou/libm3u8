@@ -1,21 +1,21 @@
-package lruset
+package fifoset
 
-type LRUSet struct {
+type FIFOSet struct {
 	capacity int
 	items    map[string]bool
 	ring     []string
 	head     int
 }
 
-func NewLRUSet(capacity int) *LRUSet {
-	return &LRUSet{
+func NewFIFOSet(capacity int) *FIFOSet {
+	return &FIFOSet{
 		capacity: capacity,
 		items:    make(map[string]bool),
 		ring:     make([]string, capacity),
 	}
 }
 
-func (s *LRUSet) Add(key string) {
+func (s *FIFOSet) Add(key string) {
 	if s.Exists(key) {
 		return
 	}
@@ -29,7 +29,7 @@ func (s *LRUSet) Add(key string) {
 	s.head = (s.head + 1) % s.capacity
 }
 
-func (s *LRUSet) Exists(key string) bool {
+func (s *FIFOSet) Exists(key string) bool {
 	_, exists := s.items[key]
 	return exists
 }

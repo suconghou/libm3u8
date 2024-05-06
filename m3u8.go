@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/suconghou/libm3u8/lruset"
+	"github.com/suconghou/libm3u8/fifoset"
 	"github.com/suconghou/libm3u8/multipipe"
 	"github.com/suconghou/libm3u8/util"
 )
@@ -23,7 +23,7 @@ type TS struct {
 
 // M3U8 resource
 type M3U8 struct {
-	l      *lruset.LRUSet
+	l      *fifoset.FIFOSet
 	ts     chan *TS
 	err    chan error
 	hasErr error
@@ -32,7 +32,7 @@ type M3U8 struct {
 // 每次读取分析一片playlist，返回nil则终止,若读取到#EXT-X-ENDLIST则也终止,ReadCloser读取异常则将终止
 // 程序按行解析，忽略最近的重复行，忽略`#EXT-X-`相关
 func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
-	m := &M3U8{lruset.NewLRUSet(200), make(chan *TS, 5), make(chan error, 5), nil}
+	m := &M3U8{fifoset.NewFIFOSet(200), make(chan *TS, 5), make(chan error, 5), nil}
 	go func() {
 		defer close(m.ts)
 		defer close(m.err)
