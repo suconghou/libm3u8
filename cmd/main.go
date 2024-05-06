@@ -101,6 +101,11 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		if err := json.Unmarshal(header, &segments); err != nil {
 			return err
 		}
+		var ll = len(segments)
+		var cut = 0
+		if r.URL.Query().Get("live") != "" && ll >= 10 {
+			cut = ll - 5
+		}
 		var s strings.Builder
 		var maxDuration float64
 		var x, y int
@@ -115,6 +120,9 @@ func file(w http.ResponseWriter, r *http.Request) error {
 			if index == 0 && d < 0.1 {
 				x = offset
 				y = offset + length - 1
+				continue
+			}
+			if index < cut {
 				continue
 			}
 			s.WriteString(fmt.Sprintf("#EXTINF:%.1f\n", d))
@@ -137,6 +145,9 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		}
 		defer f.Close()
 		var arr = strings.Split(r.URL.Query().Get("range"), "-")
+		if len(arr) != 2 {
+			return nil
+		}
 		start, err := strconv.ParseInt(arr[0], 10, 64)
 		if err != nil {
 			return err
