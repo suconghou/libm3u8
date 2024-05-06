@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"libm3u8"
-	"libm3u8/packer"
-	"libm3u8/util"
+	"github.com/suconghou/libm3u8"
+	"github.com/suconghou/libm3u8/packer"
+	"github.com/suconghou/libm3u8/util"
 )
 
 var (

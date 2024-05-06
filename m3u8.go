@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"libm3u8/lruset"
-	"libm3u8/multipipe"
-	"libm3u8/util"
+	"github.com/suconghou/libm3u8/lruset"
+	"github.com/suconghou/libm3u8/multipipe"
+	"github.com/suconghou/libm3u8/util"
 )
 
 type TS struct {

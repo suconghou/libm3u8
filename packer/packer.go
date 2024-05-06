@@ -2,9 +2,10 @@ package packer
 
 import (
 	"fmt"
-	"libm3u8"
 	"os"
 	"strings"
+
+	"github.com/suconghou/libm3u8"
 )
 
 type Packer struct {
