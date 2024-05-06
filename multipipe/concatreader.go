@@ -10,6 +10,7 @@ import (
 func ConcatReader(fn func() (io.ReadCloser, error)) *io.PipeReader {
 	r, w := io.Pipe()
 	go func(w *io.PipeWriter) {
+		var buf = make([]byte, 65536)
 		for {
 			source, err := fn()
 			if err == io.EOF {
@@ -20,7 +21,7 @@ func ConcatReader(fn func() (io.ReadCloser, error)) *io.PipeReader {
 				w.CloseWithError(err)
 				return
 			}
-			_, err = io.Copy(w, source)
+			_, err = io.CopyBuffer(w, source, buf)
 			source.Close()
 			if err != nil {
 				w.CloseWithError(err)

@@ -67,10 +67,7 @@ func stream() {
 
 func pack(u string) {
 	fname := fmt.Sprintf("%d", time.Now().Unix())
-	s, err := packer.New(libm3u8.NewFromURL(func() string { return u }), fname)
-	if err != nil {
-		util.Log.Panic(err)
-	}
+	s := packer.New(libm3u8.NewFromURL(func() string { return u }), fname)
 	util.Log.Print(s.Receive())
 }
 
@@ -106,7 +103,7 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		if r.URL.Query().Get("live") != "" && ll >= 10 {
 			cut = ll - 5
 		}
-		var s strings.Builder
+		var s = &strings.Builder{}
 		var maxDuration float64
 		var x, y int
 		for index, el := range segments {
@@ -125,14 +122,14 @@ func file(w http.ResponseWriter, r *http.Request) error {
 			if index < cut {
 				continue
 			}
-			s.WriteString(fmt.Sprintf("#EXTINF:%.1f\n", d))
-			s.WriteString(fmt.Sprintf("%s.ts?range=%d-%d\n", fname, offset, offset+length-1))
+			fmt.Fprintf(s, "#EXTINF:%.1f\n", d)
+			fmt.Fprintf(s, "%s.ts?range=%d-%d\n", fname, offset, offset+length-1)
 		}
-		var body strings.Builder
+		var body = &strings.Builder{}
 		body.WriteString("#EXTM3U\n#EXT-X-VERSION:3\n")
-		body.WriteString(fmt.Sprintf("#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(maxDuration))))
+		fmt.Fprintf(body, "#EXT-X-TARGETDURATION:%d\n", int(math.Ceil(maxDuration)))
 		if x > 0 && y > 0 && y > x {
-			body.WriteString(fmt.Sprintf("#EXT-X-MAP:URI=\"%s.ts?range=%d-%d\"\n", fname, x, y))
+			fmt.Fprintf(body, "#EXT-X-MAP:URI=\"%s.ts?range=%d-%d\"\n", fname, x, y)
 		}
 		body.WriteString(s.String())
 		_, err = w.Write([]byte(body.String()))
