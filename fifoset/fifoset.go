@@ -20,7 +20,7 @@ func (s *FIFOSet) Add(key string) {
 		return
 	}
 
-	if len(s.items) == s.capacity {
+	if len(s.items) >= s.capacity {
 		delete(s.items, s.ring[s.head])
 	}
 

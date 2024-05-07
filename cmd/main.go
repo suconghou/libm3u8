@@ -44,7 +44,7 @@ func main() {
 
 func play(u string) {
 	m := libm3u8.NewFromURL(func() string { return u })
-	if _, err := io.Copy(os.Stdout, m.Stream(nil)); err != nil {
+	if _, err := io.Copy(os.Stdout, m.Stream(util.GetBody)); err != nil {
 		util.Log.Print(err)
 	}
 }
@@ -60,7 +60,7 @@ func list(u string) {
 
 func stream() {
 	m := libm3u8.NewFromReader(os.Stdin, nil)
-	if _, err := io.Copy(os.Stdout, m.Stream(nil)); err != nil {
+	if _, err := io.Copy(os.Stdout, m.Stream(util.GetBody)); err != nil {
 		util.Log.Print(err)
 	}
 }
@@ -188,7 +188,7 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 				return m3u8URL
 			}
 		})
-		stream = m.Stream(nil)
+		stream = m.Stream(util.GetBody)
 	)
 	n, err := io.Copy(w, stream)
 	stream.Close() // 关闭ts合成流

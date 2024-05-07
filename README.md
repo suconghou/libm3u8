@@ -13,7 +13,7 @@ m := libm3u8.NewFromURL(nextURL)
 
 for stream download
 ```
-io.Copy(os.Stdout, m.Stream())
+io.Copy(os.Stdout, m.Stream(util.GetBody))
 ```
 
 

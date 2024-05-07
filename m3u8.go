@@ -58,6 +58,7 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 				}
 				if strings.HasPrefix(line, "#EXT-X-MAP") {
 					xm = strings.Split(line, "\"")[1]
+					continue
 				}
 				if line == "" || strings.HasPrefix(line, "#EXTM3U") || strings.HasPrefix(line, "#EXT-X-") {
 					continue
