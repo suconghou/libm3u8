@@ -66,9 +66,24 @@ func stream() {
 }
 
 func pack(u string) {
-	fname := fmt.Sprintf("%d", time.Now().Unix())
-	s := packer.New(libm3u8.NewFromURL(func() string { return u }), fname)
-	util.Log.Print(s.Receive())
+	var (
+		fname = fmt.Sprintf("%d", time.Now().Unix())
+		stop  = false
+		pack  = packer.New(libm3u8.NewFromURL(func() string {
+			if stop {
+				return ""
+			}
+			return u
+		}), fname)
+		progress = func(size int64, free int) error {
+			if free < 500 {
+				stop = true
+			}
+			return nil
+		}
+	)
+	util.Log.Println(u, fname)
+	util.Log.Print(pack.Receive(progress))
 }
 
 func serve() {
