@@ -114,8 +114,9 @@ func file(w http.ResponseWriter, r *http.Request) error {
 			return err
 		}
 		var ll = len(segments)
+		var live = r.URL.Query().Get("live")
 		var cut = 0
-		if r.URL.Query().Get("live") != "" && ll >= 20 {
+		if live == "1" && ll >= 20 {
 			cut = ll - 10
 		}
 		var s = &strings.Builder{}
@@ -147,6 +148,9 @@ func file(w http.ResponseWriter, r *http.Request) error {
 			fmt.Fprintf(body, "#EXT-X-MAP:URI=\"%s.ts?range=%d-%d\"\n", fname, x, y)
 		}
 		body.WriteString(s.String())
+		if live == "0" {
+			body.WriteString("#EXT-X-ENDLIST")
+		}
 		_, err = w.Write([]byte(body.String()))
 		return err
 	} else if strings.HasSuffix(fname, ".ts") {
