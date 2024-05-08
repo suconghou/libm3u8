@@ -4,21 +4,20 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/suconghou/libm3u8"
 )
 
 type Packer struct {
 	m     *libm3u8.M3U8
-	h     *strings.Builder
+	h     *bytes.Buffer
 	p     int64
 	fname string
 	l     int
 }
 
 func New(m *libm3u8.M3U8, fname string) *Packer {
-	return &Packer{m, &strings.Builder{}, 0, fname, 65536}
+	return &Packer{m, &bytes.Buffer{}, 0, fname, 65536}
 }
 
 // 设置header空间，单位KB，大小应在 4 - 512 之间 （4KB-512KB）
@@ -42,6 +41,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 			if fd == nil {
 				if f, err := s.file(); err == nil {
 					fd = f
+					defer fd.Close()
 				} else {
 					return s.p, err
 				}
@@ -50,9 +50,11 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 			if err != nil {
 				return s.p, err
 			}
-			if _, err = fd.WriteAt(s.header(s.p, n, 0), 0); err != nil {
+			header, l := s.header(s.p, n, 0)
+			if _, err = fd.WriteAt(header, 0); err != nil {
 				return s.p, err
 			}
+			s.h.Truncate(l)
 			s.p += int64(n)
 			isFirst = false
 		}
@@ -63,6 +65,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 		if fd == nil {
 			if f, err := s.file(); err == nil {
 				fd = f
+				defer fd.Close()
 			} else {
 				return s.p, err
 			}
@@ -71,11 +74,13 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 		if err != nil {
 			return s.p, err
 		}
-		if _, err = fd.WriteAt(s.header(s.p, n, ts.Duration()), 0); err != nil {
+		header, l := s.header(s.p, n, ts.Duration())
+		if _, err = fd.WriteAt(header, 0); err != nil {
 			return s.p, err
 		}
+		s.h.Truncate(l)
 		s.p += int64(n)
-		free := s.l - s.h.Len()
+		free := s.l - l
 		// 通知外部文件大小及剩余header空间，progress应在free较小时通知m关闭，如果progress返回非nil，则立即强制关闭，否则等待m关闭后平滑停止
 		// 但是如果平滑停止过程中header不足，则提前退出
 		if err = progress(s.p, free); err != nil {
@@ -100,19 +105,17 @@ func (s *Packer) file() (*os.File, error) {
 	return f, nil
 }
 
-func (s *Packer) header(offset int64, n int, d float64) []byte {
+// 返回的字节数为设定的p.l字节数,第二个为后续有效数据
+func (s *Packer) header(offset int64, n int, d float64) ([]byte, int) {
 	var isFirst = s.h.Len() < 1
 	if isFirst {
-		s.h.WriteByte('[')
-		fmt.Fprintf(s.h, "[%.1f,[%d,%d]]", d, offset, n)
+		fmt.Fprintf(s.h, "[[%.1f,[%d,%d]]", d, offset, n)
 	} else {
 		fmt.Fprintf(s.h, ",[%.1f,[%d,%d]]", d, offset, n)
 	}
-	return s.padding(s.h.String())
-}
-
-// 返回的字节数为设定的p.l字节数
-func (p *Packer) padding(s string) []byte {
-	var x = p.l - 1 - len(s)
-	return append([]byte(s+"]"), bytes.Repeat([]byte(" "), x)...)
+	var l = s.h.Len()   // 后续保持数据
+	var x = s.l - 1 - l // 补空格数
+	s.h.WriteByte(']')
+	s.h.Write(bytes.Repeat([]byte(" "), x))
+	return s.h.Bytes(), l
 }
