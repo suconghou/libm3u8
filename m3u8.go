@@ -57,7 +57,12 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 					return
 				}
 				if strings.HasPrefix(line, "#EXT-X-MAP") {
-					xm = strings.Split(line, "\"")[1]
+					if a := strings.SplitN(line, "\"", 3); len(a) == 3 && a[1] != "" {
+						xm = a[1]
+						if formater != nil {
+							xm = formater(xm)
+						}
+					}
 					continue
 				}
 				if line == "" || strings.HasPrefix(line, "#EXTM3U") || strings.HasPrefix(line, "#EXT-X-") {
@@ -80,9 +85,6 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 						l = formater(line)
 						if l == "" {
 							continue
-						}
-						if xm != "" {
-							xm = formater(xm)
 						}
 					}
 					m.ts <- &TS{t, l, xm}
