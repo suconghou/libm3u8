@@ -42,18 +42,26 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 			if err != nil {
 				m.hasErr = err
 				m.err <- err
+				if a != nil {
+					if err = a.Close(); err != nil {
+						m.err <- err
+					}
+				}
 				return
 			}
 			if a == nil {
 				return
 			}
 			s := bufio.NewScanner(a)
-			defer a.Close()
 			var t float64
 			var xm string
 			for s.Scan() {
 				line := strings.TrimSpace(s.Text())
 				if line == "#EXT-X-ENDLIST" {
+					if err = a.Close(); err != nil {
+						m.hasErr = err
+						m.err <- err
+					}
 					return
 				}
 				if strings.HasPrefix(line, "#EXT-X-MAP") {
@@ -72,6 +80,9 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 					if x, err := value(line); err != nil {
 						m.hasErr = err
 						m.err <- err
+						if err = a.Close(); err != nil {
+							m.err <- err
+						}
 						return
 					} else {
 						t = x
@@ -91,7 +102,15 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 					m.l.Add(line)
 				}
 			}
-			if err := s.Err(); err != nil {
+			if err = s.Err(); err != nil {
+				m.hasErr = err
+				m.err <- err
+				if err = a.Close(); err != nil {
+					m.err <- err
+				}
+				return
+			}
+			if err = a.Close(); err != nil {
 				m.hasErr = err
 				m.err <- err
 				return
