@@ -115,7 +115,7 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 				m.err <- err
 				return
 			}
-			time.Sleep(time.Second.Truncate(time.Since(n)))
+			time.Sleep((time.Second*2).Truncate(time.Since(n)))
 		}
 	}()
 	return m
