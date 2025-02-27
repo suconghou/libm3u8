@@ -31,11 +31,11 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 	var (
 		isFirst = true
 		fd      *os.File
+		buf     = &bytes.Buffer{}
 	)
 	for ts := range s.m.List() {
 		if isFirst && ts.MAP() != "" {
-			b, err := ts.Bytes(true)
-			if err != nil {
+			if err := ts.Bytes(buf, true); err != nil {
 				return s.p, err
 			}
 			if fd == nil {
@@ -46,7 +46,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 					return s.p, err
 				}
 			}
-			n, err := fd.Write(b)
+			n, err := fd.Write(buf.Bytes())
 			if err != nil {
 				return s.p, err
 			}
@@ -58,8 +58,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 			s.p += int64(n)
 			isFirst = false
 		}
-		b, err := ts.Bytes(false)
-		if err != nil {
+		if err := ts.Bytes(buf, false); err != nil {
 			return s.p, err
 		}
 		if fd == nil {
@@ -70,7 +69,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 				return s.p, err
 			}
 		}
-		n, err := fd.Write(b)
+		n, err := fd.Write(buf.Bytes())
 		if err != nil {
 			return s.p, err
 		}

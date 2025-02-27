@@ -2,6 +2,7 @@ package libm3u8
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"os"
 	"path"
@@ -36,6 +37,7 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 	go func() {
 		defer close(m.ts)
 		defer close(m.err)
+		delay := time.Second * 2
 		for {
 			n := time.Now()
 			a, err := r()
@@ -115,7 +117,7 @@ func New(r func() (io.ReadCloser, error), formater func(string) string) *M3U8 {
 				m.err <- err
 				return
 			}
-			time.Sleep((time.Second*2).Truncate(time.Since(n)))
+			time.Sleep(delay.Truncate(time.Since(n)))
 		}
 	}()
 	return m
@@ -216,28 +218,28 @@ func (t *TS) MAP() string {
 	return t.xmuri
 }
 
-func (t *TS) Bytes(m bool) ([]byte, error) {
+func (t *TS) Bytes(buf *bytes.Buffer, m bool) error {
 	var (
 		times uint8
 		err   error
 		body  io.ReadCloser
-		b     []byte
 		u     = t.url
 	)
 	if m && t.xmuri != "" {
 		u = t.xmuri
 	}
-	for ; times < 5; times++ {
+	for ; times < 3; times++ {
 		body, err = util.GetBody(u)
 		if err == nil {
-			b, err = io.ReadAll(body)
+			buf.Reset()
+			_, err = io.Copy(buf, body)
 			body.Close()
 			if err == nil {
-				return b, nil
+				return nil
 			}
 		}
 	}
-	return b, err
+	return err
 }
 
 func (t *TS) Duration() float64 {
