@@ -232,7 +232,7 @@ func (t *TS) Bytes(buf *bytes.Buffer, m bool) error {
 		body, err = util.GetBody(u)
 		if err == nil {
 			buf.Reset()
-			_, err = io.Copy(buf, body)
+			_, err = buf.ReadFrom(body)
 			body.Close()
 			if err == nil {
 				return nil
