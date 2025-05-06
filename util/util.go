@@ -20,32 +20,34 @@ var (
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			Proxy:           http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
+				Timeout:   3 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
 			ForceAttemptHTTP2:     true,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
+			TLSHandshakeTimeout:   3 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
 )
 
-// GetResp try max 5 time to get http response and make sure 200-299
+// GetResp try max 3 times to get http response and make sure 200-299
 func GetResp(url string) (*http.Response, error) {
 	var (
 		resp  *http.Response
 		err   error
 		times uint8
 	)
-	for ; times < 5; times++ {
+	for ; times < 3; times++ {
 		resp, err = client.Get(url)
 		if err == nil {
 			if resp.StatusCode/100 == 2 {
 				break
 			} else {
-				err = fmt.Errorf("%s:%s", url, resp.Status)
+				resp.Body.Close()
+				err = fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL.String(), resp.Status)
 			}
 		}
 		time.Sleep(time.Millisecond)

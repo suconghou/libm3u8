@@ -99,6 +99,7 @@ func (s *Packer) file() (*os.File, error) {
 	}
 	s.p, err = f.Seek(int64(s.l), 0)
 	if err != nil {
+		f.Close()
 		return nil, err
 	}
 	return f, nil
