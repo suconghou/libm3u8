@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"io"
 	"os"
-	"path"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -180,11 +178,10 @@ func NewFromURL(nextURL func() string) *M3U8 {
 			}
 			return util.GetBody(url)
 		}
-		base     = strings.Replace(path.Dir(url), ":/", "://", 1) + "/"
-		ur       = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
+		base     = util.BaseURL(url)
 		basePart = strings.SplitAfterN(base, "/", 4)
 		formater = func(u string) string {
-			if ur.MatchString(u) {
+			if util.URL.MatchString(u) {
 				return u
 			}
 			if strings.HasPrefix(u, "/") {
