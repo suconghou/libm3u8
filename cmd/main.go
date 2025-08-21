@@ -91,7 +91,9 @@ func serve() {
 		port = flag.Int("p", 6060, "listen port")
 		host = flag.String("h", "", "bind address")
 	)
-	flag.CommandLine.Parse(os.Args[2:])
+	if err := flag.CommandLine.Parse(os.Args[2:]); err != nil {
+		util.Log.Panic(err)
+	}
 	http.HandleFunc("/", routeMatch)
 	util.Log.Printf("Starting up on port %d", *port)
 	util.Log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", *host, *port), nil))
@@ -100,7 +102,7 @@ func serve() {
 func file(w http.ResponseWriter, r *http.Request) error {
 	var fname = strings.TrimLeft(r.URL.Path, "/")
 	if strings.HasSuffix(fname, ".m3u8") {
-		fname = strings.Replace(fname, ".m3u8", "", -1)
+		fname = strings.ReplaceAll(fname, ".m3u8", "")
 		f, err := os.Open(fname)
 		if err != nil {
 			return err
@@ -154,7 +156,7 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		_, err = w.Write([]byte(body.String()))
 		return err
 	} else if strings.HasSuffix(fname, ".ts") {
-		fname = strings.Replace(fname, ".ts", "", -1)
+		fname = strings.ReplaceAll(fname, ".ts", "")
 		f, err := os.Open(fname)
 		if err != nil {
 			return err
@@ -210,7 +212,7 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 		stream = m.Stream(util.GetBody)
 	)
 	n, err := io.Copy(w, stream)
-	stream.Close() // 关闭ts合成流
+	_ = stream.Close() // 关闭ts合成流
 	if err != nil {
 		if n < 1 {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

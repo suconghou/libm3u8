@@ -2,6 +2,7 @@ package util
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -48,11 +49,10 @@ func GetResp(url string) (*http.Response, error) {
 			if resp.StatusCode/100 == 2 {
 				break
 			} else {
-				resp.Body.Close()
-				err = fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL, resp.Status)
+				err = errors.Join(resp.Body.Close(), fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL, resp.Status))
 			}
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(time.Second)
 	}
 	return resp, err
 }

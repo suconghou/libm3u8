@@ -2,6 +2,7 @@ package packer
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 
@@ -99,8 +100,7 @@ func (s *Packer) file() (*os.File, error) {
 	}
 	s.p, err = f.Seek(int64(s.l), 0)
 	if err != nil {
-		f.Close()
-		return nil, err
+		return nil, errors.Join(f.Close(), err)
 	}
 	return f, nil
 }

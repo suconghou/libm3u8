@@ -12,15 +12,18 @@ func ConcatReader(fn func() (io.ReadCloser, error)) *io.PipeReader {
 		for {
 			source, err := fn()
 			if err == io.EOF {
-				w.Close()
+				_ = w.Close()
 				return
 			}
 			if err != nil {
+				if source != nil {
+					_ = source.Close()
+				}
 				w.CloseWithError(err)
 				return
 			}
 			_, err = io.CopyBuffer(w, source, buf)
-			source.Close()
+			_ = source.Close()
 			if err != nil {
 				w.CloseWithError(err)
 				return

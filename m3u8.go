@@ -230,7 +230,9 @@ func (t *TS) Bytes(buf *bytes.Buffer, m bool) error {
 		if err == nil {
 			buf.Reset()
 			_, err = buf.ReadFrom(body)
-			body.Close()
+			if er2 := body.Close(); er2 != nil && err == nil {
+				err = er2
+			}
 			if err == nil {
 				return nil
 			}
