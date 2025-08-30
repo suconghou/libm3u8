@@ -42,7 +42,7 @@ func New(ctx context.Context, r func() (io.ReadCloser, error), headers http.Head
 	go func() {
 		defer close(m.ts)
 		defer close(m.err)
-		defer cancel()
+		// 不要自动cancel，因为通道里可能还有要处理的数据
 		delay := time.Second * 2
 		for {
 			select {
