@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,7 +21,8 @@ import (
 )
 
 var (
-	ur = regexp.MustCompile(`^/(?i:https?):/{1,2}[[:print:]]+$`)
+	ur  = regexp.MustCompile(`^/(?i:https?):/{1,2}[[:print:]]+$`)
+	ctx = context.Background()
 )
 
 func main() {
@@ -41,16 +43,44 @@ func main() {
 		stream()
 	}
 }
+func parseHeaders() http.Header {
+	headers := make(http.Header)
+	// 定义 -H 标志，支持多次使用
+	headerFlags := make([]string, 0)
+	// 临时解析命令行参数来获取 -H 标志
+	tempArgs := os.Args[1:]
+	for i := 0; i < len(tempArgs); i++ {
+		if tempArgs[i] == "-H" && i+1 < len(tempArgs) {
+			headerFlags = append(headerFlags, tempArgs[i+1])
+			i++ // 跳过参数值
+		}
+	}
+	// 解析每个header
+	for _, header := range headerFlags {
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			headers.Add(key, value)
+		}
+	}
+	return headers
+}
 
 func play(u string) {
-	m := libm3u8.NewFromURL(func() string { return u })
-	if _, err := io.Copy(os.Stdout, m.Stream(util.GetBody)); err != nil {
+	headers := parseHeaders()
+	m := libm3u8.NewFromURL(ctx, func() string { return u }, headers)
+	fetcher := func(url string) (io.ReadCloser, error) {
+		return util.GetBody(ctx, url, headers)
+	}
+	if _, err := io.Copy(os.Stdout, m.Stream(fetcher)); err != nil {
 		util.Log.Print(err)
 	}
 }
 
 func list(u string) {
-	m := libm3u8.NewFromURL(func() string { return u })
+	headers := parseHeaders()
+	m := libm3u8.NewFromURL(ctx, func() string { return u }, headers)
 	for ts := range m.List() {
 		if _, err := fmt.Println(ts.URL()); err != nil {
 			util.Log.Print(err)
@@ -59,22 +89,27 @@ func list(u string) {
 }
 
 func stream() {
-	m := libm3u8.NewFromReader(os.Stdin, nil)
-	if _, err := io.Copy(os.Stdout, m.Stream(util.GetBody)); err != nil {
+	headers := parseHeaders()
+	m := libm3u8.NewFromReader(ctx, os.Stdin, headers, nil)
+	fetcher := func(url string) (io.ReadCloser, error) {
+		return util.GetBody(ctx, url, headers)
+	}
+	if _, err := io.Copy(os.Stdout, m.Stream(fetcher)); err != nil {
 		util.Log.Print(err)
 	}
 }
 
 func pack(u string) {
 	var (
-		fname = fmt.Sprintf("%d", time.Now().Unix())
-		stop  = false
-		pack  = packer.New(libm3u8.NewFromURL(func() string {
+		headers = parseHeaders()
+		fname   = fmt.Sprintf("%d", time.Now().Unix())
+		stop    = false
+		pack    = packer.New(libm3u8.NewFromURL(ctx, func() string {
 			if stop {
 				return ""
 			}
 			return u
-		}), fname)
+		}, headers), fname)
 		progress = func(size int64, free int) error {
 			if free < 500 {
 				stop = true
@@ -201,15 +236,17 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var (
 		m3u8URL = target.String()
-		m       = libm3u8.NewFromURL(func() string {
+		m       = libm3u8.NewFromURL(ctx, func() string {
 			select {
 			case <-r.Context().Done():
 				return "" // 标记关闭输入端
 			default:
 				return m3u8URL
 			}
+		}, r.Header)
+		stream = m.Stream(func(s string) (io.ReadCloser, error) {
+			return util.GetBody(r.Context(), s, r.Header)
 		})
-		stream = m.Stream(util.GetBody)
 	)
 	n, err := io.Copy(w, stream)
 	_ = stream.Close() // 关闭ts合成流

@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -37,14 +38,19 @@ var (
 )
 
 // GetResp try max 3 times to get http response and make sure 200-299
-func GetResp(url string) (*http.Response, error) {
+func GetResp(ctx context.Context, url string, headers http.Header) (*http.Response, error) {
 	var (
 		resp  *http.Response
 		err   error
 		times uint8
 	)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = headers
 	for ; times < 3; times++ {
-		resp, err = client.Get(url)
+		resp, err = client.Do(req)
 		if err == nil {
 			if resp.StatusCode/100 == 2 {
 				break
@@ -58,8 +64,8 @@ func GetResp(url string) (*http.Response, error) {
 }
 
 // GetBody return http response body
-func GetBody(url string) (io.ReadCloser, error) {
-	resp, err := GetResp(url)
+func GetBody(ctx context.Context, url string, headers http.Header) (io.ReadCloser, error) {
+	resp, err := GetResp(ctx, url, headers)
 	if err != nil {
 		return nil, err
 	}
