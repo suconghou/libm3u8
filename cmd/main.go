@@ -136,12 +136,13 @@ func serve() {
 
 func file(w http.ResponseWriter, r *http.Request) error {
 	var fname = strings.TrimLeft(r.URL.Path, "/")
-	if strings.HasSuffix(fname, ".m3u8") {
-		fname = strings.ReplaceAll(fname, ".m3u8", "")
+	if before, found := strings.CutSuffix(fname, ".m3u8"); found {
+		fname = before
 		f, err := os.Open(fname)
 		if err != nil {
 			return err
 		}
+		defer f.Close()
 		var header = make([]byte, 65536)
 		if _, err = io.ReadFull(f, header); err != nil {
 			return err
@@ -190,8 +191,8 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		}
 		_, err = w.Write([]byte(body.String()))
 		return err
-	} else if strings.HasSuffix(fname, ".ts") {
-		fname = strings.ReplaceAll(fname, ".ts", "")
+	} else if before, found := strings.CutSuffix(fname, ".ts"); found {
+		fname = before
 		f, err := os.Open(fname)
 		if err != nil {
 			return err
