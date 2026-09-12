@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/suconghou/libm3u8"
@@ -26,49 +27,54 @@ var (
 )
 
 func main() {
-	if len(os.Args) >= 3 {
-		switch os.Args[1] {
+	args, headers := parseArgs(os.Args[1:])
+	if arg(args, 0) == "serve" {
+		serve(args[1:])
+		return
+	}
+	if u := arg(args, 1); u != "" {
+		switch args[0] {
 		case "play":
-			play(os.Args[2])
+			play(u, headers)
 		case "list":
-			list(os.Args[2])
+			list(u, headers)
 		case "pack":
-			pack(os.Args[2])
-		case "serve":
-			serve()
+			pack(u, arg(args, 2), headers)
 		}
-	} else if len(os.Args) >= 2 && os.Args[1] == "serve" {
-		serve()
-	} else {
-		stream()
+		return
 	}
-}
-func parseHeaders() http.Header {
-	headers := make(http.Header)
-	// 定义 -H 标志，支持多次使用
-	headerFlags := make([]string, 0)
-	// 临时解析命令行参数来获取 -H 标志
-	tempArgs := os.Args[1:]
-	for i := 0; i < len(tempArgs); i++ {
-		if tempArgs[i] == "-H" && i+1 < len(tempArgs) {
-			headerFlags = append(headerFlags, tempArgs[i+1])
-			i++ // 跳过参数值
-		}
-	}
-	// 解析每个header
-	for _, header := range headerFlags {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			headers.Add(key, value)
-		}
-	}
-	return headers
+	// 未指定URL(或未指定子命令)时回退为从标准输入读取播放列表，输出到标准输出
+	stream(headers)
 }
 
-func play(u string) {
-	headers := parseHeaders()
+// parseArgs 一次遍历分离出位置参数与 -H 指定的请求头，-H 可重复出现且位置任意
+func parseArgs(args []string) ([]string, http.Header) {
+	var (
+		positional = make([]string, 0, len(args))
+		headers    = make(http.Header)
+	)
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-H" && i+1 < len(args) {
+			i++
+			if key, value, ok := strings.Cut(args[i], ":"); ok {
+				headers.Add(strings.TrimSpace(key), strings.TrimSpace(value))
+			}
+			continue
+		}
+		positional = append(positional, args[i])
+	}
+	return positional, headers
+}
+
+// arg 返回第 n 个位置参数，不存在时返回空字符串
+func arg(args []string, n int) string {
+	if n >= 0 && n < len(args) {
+		return args[n]
+	}
+	return ""
+}
+
+func play(u string, headers http.Header) {
 	m := libm3u8.NewFromURL(ctx, func() string { return u }, headers)
 	fetcher := func(url string) (io.ReadCloser, error) {
 		return util.GetBody(ctx, url, headers)
@@ -78,8 +84,7 @@ func play(u string) {
 	}
 }
 
-func list(u string) {
-	headers := parseHeaders()
+func list(u string, headers http.Header) {
 	m := libm3u8.NewFromURL(ctx, func() string { return u }, headers)
 	for ts := range m.List() {
 		if _, err := fmt.Println(ts.URL()); err != nil {
@@ -88,8 +93,7 @@ func list(u string) {
 	}
 }
 
-func stream() {
-	headers := parseHeaders()
+func stream(headers http.Header) {
 	m := libm3u8.NewFromReader(ctx, os.Stdin, headers, nil)
 	fetcher := func(url string) (io.ReadCloser, error) {
 		return util.GetBody(ctx, url, headers)
@@ -99,34 +103,44 @@ func stream() {
 	}
 }
 
-func pack(u string) {
+// minFree 剩余header空间低于此值时，通知输入端停止拉取新的播放列表，
+// 需明显大于packer单条索引项长度，以保证header空间耗尽前完成平滑停止
+const minFree = 500
+
+// pack 下载并打包 m3u8 为单文件，prefix 为可选的文件名前缀，最终文件名为 前缀+时间戳
+func pack(u, prefix string, headers http.Header) {
 	var (
-		headers = parseHeaders()
-		fname   = fmt.Sprintf("%d", time.Now().Unix())
-		stop    = false
-		pack    = packer.New(libm3u8.NewFromURL(ctx, func() string {
-			if stop {
+		fname = fmt.Sprintf("%s%d", strings.TrimSpace(prefix), time.Now().Unix())
+		// stop 由progress回调(main协程)写入、由nextURL(M3U8后台协程)读取，必须使用原子变量
+		stop atomic.Bool
+		p    = packer.New(libm3u8.NewFromURL(ctx, func() string {
+			if stop.Load() {
 				return ""
 			}
 			return u
 		}, headers), fname)
 		progress = func(size int64, free int) error {
-			if free < 500 {
-				stop = true
+			if free < minFree {
+				stop.Store(true)
 			}
 			return nil
 		}
 	)
 	util.Log.Println(u, fname)
-	util.Log.Print(pack.Receive(progress))
+	n, err := p.Receive(progress)
+	if err != nil {
+		util.Log.Println(n, err)
+		return
+	}
+	util.Log.Println(fname, n)
 }
 
-func serve() {
+func serve(args []string) {
 	var (
 		port = flag.Int("p", 6060, "listen port")
 		host = flag.String("h", "", "bind address")
 	)
-	if err := flag.CommandLine.Parse(os.Args[2:]); err != nil {
+	if err := flag.CommandLine.Parse(args); err != nil {
 		util.Log.Panic(err)
 	}
 	http.HandleFunc("/", routeMatch)

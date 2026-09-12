@@ -38,6 +38,7 @@ var (
 )
 
 // GetResp try max 3 times to get http response and make sure 200-299
+// 重试间隔1秒，ctx提前结束则立即返回；非2xx或请求失败时保证响应体被关闭，不会返回已关闭的响应
 func GetResp(ctx context.Context, url string, headers http.Header) (*http.Response, error) {
 	var (
 		resp  *http.Response
@@ -50,17 +51,29 @@ func GetResp(ctx context.Context, url string, headers http.Header) (*http.Respon
 	}
 	req.Header = headers
 	for ; times < 3; times++ {
-		resp, err = client.Do(req)
-		if err == nil {
-			if resp.StatusCode/100 == 2 {
-				break
-			} else {
-				err = errors.Join(resp.Body.Close(), fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL, resp.Status))
-			}
+		// ctx已结束则不再重试，避免无意义的等待
+		if err = ctx.Err(); err != nil {
+			return nil, err
 		}
-		time.Sleep(time.Second)
+		resp, err = client.Do(req)
+		if err != nil {
+			// Do在CheckRedirect失败等情况下会同时返回非nil的resp，即使标准库已关闭其body也再关闭一次
+			if resp != nil {
+				_ = resp.Body.Close()
+				resp = nil
+			}
+		} else if resp.StatusCode/100 == 2 {
+			return resp, nil
+		} else {
+			err = errors.Join(resp.Body.Close(), fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL, resp.Status))
+			resp = nil
+		}
+		// 最后一次重试后不再等待
+		if times < 2 {
+			time.Sleep(time.Second)
+		}
 	}
-	return resp, err
+	return nil, err
 }
 
 // GetBody return http response body

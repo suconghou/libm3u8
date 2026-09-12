@@ -9,6 +9,10 @@ import (
 	"github.com/suconghou/libm3u8"
 )
 
+// maxEntryLen 单条索引项的最长长度（duration + 两个最多19位整数 + 分隔符），
+// 剩余空间不足此长度时提前停止，保证下一次写入header时补位空格数不会为负
+const maxEntryLen = 64
+
 type Packer struct {
 	m     *libm3u8.M3U8
 	h     *bytes.Buffer
@@ -85,7 +89,7 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 		// 但是如果平滑停止过程中header不足，则提前退出
 		if err = progress(s.p, free); err != nil {
 			return s.p, err
-		} else if free < 50 {
+		} else if free < maxEntryLen {
 			return s.p, s.m.Err()
 		}
 	}
