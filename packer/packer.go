@@ -32,35 +32,20 @@ func (s *Packer) Limit(n int) {
 
 // 文件写入，此调用阻塞, 执行过程中将会调用progress上报当前文件大小及剩余header空间，progress必须在剩余header空间较小时通知m关闭
 // progress返回非nil时，强制停止文件写入并返回此错误，返回nil时则等待外部m终止后平滑停止
+// 若没有可用数据（无分片、ts地址404/403等导致一个媒体分片都没写入），则不会创建输出文件
 func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 	var (
 		isFirst = true
 		fd      *os.File
 		buf     = &bytes.Buffer{}
+		xbuf    = &bytes.Buffer{}
 	)
 	for ts := range s.m.List() {
 		if isFirst && ts.MAP() != "" {
-			if err := ts.Bytes(buf, true); err != nil {
+			// fMP4 的 init section 只暂存到内存，待首个媒体分片下载成功、创建文件后再落盘，避免分片 404/403 时留下只含 init section 的无用文件
+			if err := ts.Bytes(xbuf, true); err != nil {
 				return s.p, err
 			}
-			if fd == nil {
-				if f, err := s.file(); err == nil {
-					fd = f
-					defer fd.Close()
-				} else {
-					return s.p, err
-				}
-			}
-			n, err := fd.Write(buf.Bytes())
-			if err != nil {
-				return s.p, err
-			}
-			header, l := s.header(s.p, n, 0)
-			if _, err = fd.WriteAt(header, 0); err != nil {
-				return s.p, err
-			}
-			s.h.Truncate(l)
-			s.p += int64(n)
 			isFirst = false
 		}
 		if err := ts.Bytes(buf, false); err != nil {
@@ -72,6 +57,18 @@ func (s *Packer) Receive(progress func(int64, int) error) (int64, error) {
 				defer fd.Close()
 			} else {
 				return s.p, err
+			}
+			if xbuf.Len() > 0 {
+				n, err := fd.Write(xbuf.Bytes())
+				if err != nil {
+					return s.p, err
+				}
+				header, l := s.header(s.p, n, 0)
+				if _, err = fd.WriteAt(header, 0); err != nil {
+					return s.p, err
+				}
+				s.h.Truncate(l)
+				s.p += int64(n)
 			}
 		}
 		n, err := fd.Write(buf.Bytes())

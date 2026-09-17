@@ -128,7 +128,8 @@ func pack(u, prefix string, headers http.Header) {
 	)
 	util.Log.Println(u, fname)
 	n, err := p.Receive(progress)
-	if err != nil {
+	// n == 0 表示没有可用数据，此时不会创建输出文件，不应记为成功
+	if err != nil || n == 0 {
 		util.Log.Println(n, err)
 		return
 	}
