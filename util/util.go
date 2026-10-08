@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -19,20 +18,11 @@ var (
 	Log    = log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lshortfile)
 	client = &http.Client{
 		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			Proxy:           http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   3 * time.Second,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   3 * time.Second,
-			ResponseHeaderTimeout: 5 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
+		Transport: func() *http.Transport {
+			t := http.DefaultTransport.(*http.Transport).Clone()
+			t.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+			return t
+		}(),
 	}
 	URL = regexp.MustCompile(`^(?i:https?)://[[:print:]]{4,}$`)
 )
