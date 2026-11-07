@@ -55,8 +55,12 @@ func GetResp(ctx context.Context, url string, headers http.Header) (*http.Respon
 		} else if resp.StatusCode/100 == 2 {
 			return resp, nil
 		} else {
+			var status = resp.StatusCode
 			err = errors.Join(resp.Body.Close(), fmt.Errorf("%s %s : %s", resp.Request.Method, resp.Request.URL, resp.Status))
 			resp = nil
+			if status/100 == 4 {
+				return nil, err
+			}
 		}
 		// 最后一次重试后不再等待
 		if times < 2 {

@@ -111,8 +111,13 @@ func New(ctx context.Context, r func() (io.ReadCloser, error), headers http.Head
 							continue
 						}
 					}
-					m.ts <- &TS{t, l, xm, m}
-					m.l.Add(line)
+					select {
+					case m.ts <- &TS{t, l, xm, m}:
+						m.l.Add(line)
+					case <-ctx.Done():
+						_ = a.Close()
+						return
+					}
 				}
 			}
 			if err = s.Err(); err != nil {
@@ -128,7 +133,7 @@ func New(ctx context.Context, r func() (io.ReadCloser, error), headers http.Head
 				m.err <- err
 				return
 			}
-			time.Sleep(delay.Truncate(time.Since(n)))
+			time.Sleep(max(0, delay-time.Since(n)))
 		}
 	}()
 	return m
@@ -233,26 +238,23 @@ func (t *TS) MAP() string {
 }
 
 func (t *TS) Bytes(buf *bytes.Buffer, m bool) error {
-	var (
-		times uint8
-		err   error
-		body  io.ReadCloser
-		u     = t.url
-	)
+	var u = t.url
 	if m && t.xmuri != "" {
 		u = t.xmuri
 	}
-	for ; times < 3; times++ {
-		body, err = util.GetBody(t.m.ctx, u, *t.m.headers)
+	var err error
+	for range 2 {
+		body, e := util.GetBody(t.m.ctx, u, *t.m.headers)
+		if e != nil {
+			return e
+		}
+		buf.Reset()
+		_, err = buf.ReadFrom(body)
+		if er2 := body.Close(); er2 != nil && err == nil {
+			err = er2
+		}
 		if err == nil {
-			buf.Reset()
-			_, err = buf.ReadFrom(body)
-			if er2 := body.Close(); er2 != nil && err == nil {
-				err = er2
-			}
-			if err == nil {
-				return nil
-			}
+			return nil
 		}
 	}
 	return err

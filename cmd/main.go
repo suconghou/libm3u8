@@ -252,7 +252,7 @@ func routeMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	var (
 		m3u8URL = target.String()
-		m       = libm3u8.NewFromURL(ctx, func() string {
+		m       = libm3u8.NewFromURL(r.Context(), func() string {
 			select {
 			case <-r.Context().Done():
 				return "" // 标记关闭输入端

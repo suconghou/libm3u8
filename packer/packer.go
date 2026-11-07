@@ -10,7 +10,7 @@ import (
 )
 
 // maxEntryLen 单条索引项的最长长度（duration + 两个最多19位整数 + 分隔符），
-// 剩余空间不足此长度时提前停止，保证下一次写入header时补位空格数不会为负
+// 剩余空间不足此长度时提前停止，避免索引越过header区覆盖媒体数据
 const maxEntryLen = 64
 
 type Packer struct {
@@ -99,6 +99,9 @@ func (s *Packer) file() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err = f.WriteAt(bytes.Repeat([]byte(" "), s.l), 0); err != nil {
+		return nil, errors.Join(f.Close(), err)
+	}
 	s.p, err = f.Seek(int64(s.l), 0)
 	if err != nil {
 		return nil, errors.Join(f.Close(), err)
@@ -106,7 +109,7 @@ func (s *Packer) file() (*os.File, error) {
 	return f, nil
 }
 
-// 返回的字节数为设定的p.l字节数,第二个为后续有效数据
+// 返回当前完整索引JSON，第二个返回值为下次追加前需保留的有效数据长度
 func (s *Packer) header(offset int64, n int, d float64) ([]byte, int) {
 	var isFirst = s.h.Len() < 1
 	if isFirst {
@@ -114,9 +117,7 @@ func (s *Packer) header(offset int64, n int, d float64) ([]byte, int) {
 	} else {
 		fmt.Fprintf(s.h, ",[%.1f,[%d,%d]]", d, offset, n)
 	}
-	var l = s.h.Len()   // 后续保持数据
-	var x = s.l - 1 - l // 补空格数
+	var l = s.h.Len()
 	s.h.WriteByte(']')
-	s.h.Write(bytes.Repeat([]byte(" "), x))
-	return s.h.Bytes(), l
+	return s.h.Bytes()[:l+1], l
 }
