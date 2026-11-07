@@ -133,7 +133,11 @@ func New(ctx context.Context, r func() (io.ReadCloser, error), headers http.Head
 				m.err <- err
 				return
 			}
-			time.Sleep(max(0, delay-time.Since(n)))
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(max(0, delay-time.Since(n))):
+			}
 		}
 	}()
 	return m

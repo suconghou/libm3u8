@@ -85,11 +85,18 @@ func play(u string, headers http.Header) {
 }
 
 func list(u string, headers http.Header) {
-	m := libm3u8.NewFromURL(ctx, func() string { return u }, headers)
+	var stop atomic.Bool
+	m := libm3u8.NewFromURL(ctx, func() string {
+		if stop.Load() {
+			return ""
+		}
+		return u
+	}, headers)
 	for ts := range m.List() {
 		if _, err := fmt.Println(ts.URL()); err != nil {
 			util.Log.Print(err)
 		}
+		stop.Store(true)
 	}
 }
 
@@ -225,11 +232,15 @@ func file(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		var buf = make([]byte, end-start+1)
-		if _, err = f.ReadAt(buf, start); err != nil {
+		st, err := f.Stat()
+		if err != nil {
 			return err
 		}
-		_, err = w.Write(buf)
+		if start < 0 || end < start || end >= st.Size() {
+			return fmt.Errorf("invalid range %d-%d", start, end)
+		}
+		var n = end - start + 1
+		_, err = io.CopyN(w, io.NewSectionReader(f, start, n), n)
 		return err
 	}
 	http.ServeFile(w, r, fname)

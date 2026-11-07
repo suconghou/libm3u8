@@ -64,7 +64,11 @@ func GetResp(ctx context.Context, url string, headers http.Header) (*http.Respon
 		}
 		// 最后一次重试后不再等待
 		if times < 2 {
-			time.Sleep(time.Second)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(time.Second):
+			}
 		}
 	}
 	return nil, err
